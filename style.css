@@ -1094,7 +1094,7 @@ body.dark-theme .history-note{
   background: #ffffff;
   border: 1.5px solid var(--glass-border);
   border-radius: var(--radius-sm);
-  color: var(--text);
+  color: #1F2937;
   font-family: var(--font-body);
   font-weight: 600;
   font-size: 13px;
@@ -1102,6 +1102,11 @@ body.dark-theme .history-note{
   outline: none;
   cursor: pointer;
   transition: border-color .18s ease, box-shadow .18s ease;
+}
+
+.scheme-select option{
+  color: #1F2937;
+  background: #ffffff;
 }
 
 .scheme-select:focus{
@@ -2113,6 +2118,8 @@ body.dark-theme .modal-close{ background: rgba(255,255,255,.06); }
 
 /* Theme overrides for modernized footer chips */
 body.theme-shell .dev-avatar{ background: rgba(255,199,44,.16); }
+body.theme-shell .dev-header .dev-role{ color: #9CA3AF; }
+body.theme-shell .dev-header .dev-name{ color: #F3F4F6; }
 body.theme-shell .dev-chip{
   background: rgba(255,255,255,.08);
   border-color: rgba(255,255,255,.16);
@@ -2146,3 +2153,195 @@ body.theme-v1 .theme-preview-card{
 
 /* Animated counter value pop */
 .readout-value.is-counting{ transition: none; }
+
+/* =========================================================
+   4th theme card grid (2x2) + Windows 11 swatch
+   ========================================================= */
+.theme-preview-grid-4{
+  grid-template-columns: repeat(2, 1fr);
+}
+.theme-preview-win11{
+  background: linear-gradient(135deg, #0067C0 0%, #2899F5 60%, #60CDFF 100%);
+}
+
+/* =========================================================
+   Windows 11 style theme
+   ========================================================= */
+body.theme-win11 .plate{
+  background:
+    radial-gradient(480px 240px at 100% -10%, rgba(255,255,255,.35) 0%, transparent 60%),
+    linear-gradient(135deg, #0067C0 0%, #2899F5 60%, #60CDFF 100%);
+  border: 1px solid rgba(255,255,255,.35);
+  box-shadow: 0 16px 40px rgba(0,103,192,.24), 0 1.5px 0 rgba(255,255,255,.3) inset;
+  text-shadow: none;
+}
+body.theme-win11 .plate-badge{
+  background: rgba(255,255,255,.22);
+  border: 1px solid rgba(255,255,255,.4);
+}
+body.theme-win11 .plate-clock{
+  background: rgba(255,255,255,.18);
+  border: 1px solid rgba(255,255,255,.35);
+}
+
+body.theme-win11 .save-btn{
+  background: linear-gradient(135deg, #0067C0, #004E8C);
+  color: #ffffff;
+  box-shadow: 0 6px 16px rgba(0,103,192,.35);
+}
+body.theme-win11 .save-btn:hover{ box-shadow: 0 8px 20px rgba(0,103,192,.45); }
+
+body.theme-win11 .clear-btn{
+  background: #F3F3F3;
+  border-color: #E1E1E1;
+  color: #605E5C;
+}
+body.theme-win11 .clear-btn:hover{
+  border-color: var(--error);
+  color: var(--error);
+  background: rgba(239,68,68,.06);
+}
+
+body.theme-win11 .tank-chip{
+  color: #004E8C;
+  background: rgba(0,103,192,.1);
+  border: 1px solid rgba(0,103,192,.25);
+}
+body.theme-win11 .tank-card[data-tank="t50"]{ border: 2px solid #0067C0; }
+body.theme-win11 .tank-card[data-tank="t50"]:hover{ border-color: #004E8C; box-shadow: 0 14px 34px rgba(0,103,192,.24); }
+body.theme-win11 .tank-card[data-tank="t25"]{ border: 2px solid #2899F5; }
+body.theme-win11 .tank-card[data-tank="t25"]:hover{ border-color: #0067C0; box-shadow: 0 14px 34px rgba(40,153,245,.24); }
+
+body.theme-win11 .readout{
+  background: linear-gradient(90deg, rgba(0,103,192,.08) 0%, rgba(0,103,192,.03) 45%, #ffffff 100%), #ffffff;
+  border: 1px solid var(--border);
+  border-left: 5px solid #0067C0;
+}
+body.theme-win11 .readout-label,
+body.theme-win11 .readout-value{ color: #004E8C; }
+body.theme-win11 .readout.has-value{
+  border-left-color: #0067C0;
+  background: linear-gradient(90deg, rgba(0,103,192,.14) 0%, rgba(0,103,192,.05) 45%, #ffffff 100%), #ffffff;
+}
+
+body.theme-win11 .gauge-fill{
+  background: linear-gradient(180deg, #60CDFF 0%, #2899F5 55%, #0067C0 100%);
+  box-shadow: 0 0 14px rgba(0,103,192,.35);
+}
+
+body.theme-win11 .dev-panel{
+  background: rgba(255,255,255,.55);
+  border: 1px solid rgba(0,103,192,.15);
+  backdrop-filter: blur(24px) saturate(180%);
+  -webkit-backdrop-filter: blur(24px) saturate(180%);
+  box-shadow: 0 14px 34px rgba(0,103,192,.12);
+}
+body.theme-win11 .dev-panel::before{ background: linear-gradient(90deg,#0067C0,#60CDFF); height: 3px; }
+body.theme-win11 .dev-avatar{ background: rgba(0,103,192,.12); }
+body.theme-win11 .dev-chip{
+  background: rgba(0,103,192,.08);
+  border-color: rgba(0,103,192,.18);
+  color: #004E8C;
+}
+body.theme-win11 .dev-chip:hover{ background: rgba(0,103,192,.14); }
+body.theme-win11 .dev-chip-whatsapp{
+  background: rgba(34,197,94,.1);
+  border-color: rgba(34,197,94,.22);
+  color: var(--success-dark);
+}
+
+body.theme-win11 .nav-item.is-active{ color: #0067C0; background: rgba(0,103,192,.1); }
+body.theme-win11 .theme-preview-card{ border-color: var(--glass-border); }
+
+/* =========================================================
+   View Settings toggle (Mobile View / Desktop View)
+   ========================================================= */
+.view-toggle-grid{
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 10px;
+}
+
+.view-toggle-btn{
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 6px;
+  background: #ffffff;
+  border: 2px solid var(--glass-border);
+  border-radius: var(--radius-md);
+  padding: 14px 8px;
+  cursor: pointer;
+  transition: border-color .18s ease, transform .15s ease, box-shadow .18s ease;
+  font-family: var(--font-body);
+}
+.view-toggle-btn:active{ transform: scale(.96); }
+
+.view-toggle-icon{ font-size: 24px; }
+
+.view-toggle-name{
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--text-muted);
+}
+
+.view-toggle-btn.is-selected{
+  border-color: var(--primary);
+  box-shadow: 0 0 0 3px rgba(37,99,235,.14);
+  background: rgba(37,99,235,.05);
+}
+.view-toggle-btn.is-selected .view-toggle-name{
+  color: var(--text);
+  font-weight: 700;
+}
+
+body.theme-v1 .view-toggle-btn{
+  background: rgba(255,255,255,.05);
+  border-color: rgba(255,255,255,.14);
+}
+
+/* =========================================================
+   Desktop View override — force wide, side-by-side layout
+   ========================================================= */
+body.view-desktop .tanks{
+  grid-template-columns: 1fr 1fr !important;
+}
+body.view-desktop .site-info-grid{
+  display: grid !important;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 10px 20px;
+}
+body.view-desktop .bottom-nav{
+  max-width: 640px;
+}
+body.view-desktop .app-panel{
+  padding-left: 12px;
+  padding-right: 12px;
+}
+
+/* =========================================================
+   Mobile View override — force narrow single-column layout
+   ========================================================= */
+body.view-mobile #appContent,
+body.view-mobile .app-panel{
+  max-width: 460px;
+  margin-left: auto;
+  margin-right: auto;
+}
+body.view-mobile .site-head,
+body.view-mobile .site-info-card,
+body.view-mobile .tanks,
+body.view-mobile .history,
+body.view-mobile .dev-panel,
+body.view-mobile .site-foot{
+  max-width: 460px !important;
+}
+body.view-mobile .tanks{
+  grid-template-columns: 1fr !important;
+}
+body.view-mobile .site-info-grid{
+  grid-template-columns: 1fr !important;
+}
+body.view-mobile .bottom-nav{
+  max-width: 420px;
+}

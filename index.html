@@ -68,7 +68,7 @@
         <div class="modal-row-title" data-i18n="settings.colorScheme">🎨 Color Scheme</div>
         <div class="modal-row-sub">Tap a theme to preview &amp; apply it instantly</div>
       </div>
-      <div class="theme-preview-grid" id="themePreviewGrid">
+      <div class="theme-preview-grid theme-preview-grid-4" id="themePreviewGrid">
         <button type="button" class="theme-preview-card" data-scheme="shell" onclick="onSchemeChange('shell')">
           <span class="theme-preview-swatch theme-preview-shell">
             <span class="theme-preview-check">✓</span>
@@ -87,6 +87,29 @@
           </span>
           <span class="theme-preview-name">🌑 Premium Dark</span>
         </button>
+        <button type="button" class="theme-preview-card" data-scheme="win11" onclick="onSchemeChange('win11')">
+          <span class="theme-preview-swatch theme-preview-win11">
+            <span class="theme-preview-check">✓</span>
+          </span>
+          <span class="theme-preview-name">🪟 Windows 11</span>
+        </button>
+      </div>
+    </div>
+
+    <div class="modal-row modal-row-stack">
+      <div>
+        <div class="modal-row-title" data-i18n="settings.viewMode">📐 View Settings</div>
+        <div class="modal-row-sub">Choose how the app layout is displayed</div>
+      </div>
+      <div class="view-toggle-grid" id="viewToggleGrid">
+        <button type="button" class="view-toggle-btn" data-view="mobile" onclick="onViewModeChange('mobile')">
+          <span class="view-toggle-icon">📱</span>
+          <span class="view-toggle-name">Mobile View</span>
+        </button>
+        <button type="button" class="view-toggle-btn" data-view="desktop" onclick="onViewModeChange('desktop')">
+          <span class="view-toggle-icon">🖥️</span>
+          <span class="view-toggle-name">Desktop View</span>
+        </button>
       </div>
     </div>
 
@@ -97,7 +120,6 @@
       </div>
       <select id="languageSelect" class="scheme-select" onchange="onLanguageChange(this.value)">
         <option value="en">English</option>
-        <option value="ur">اردو (Urdu)</option>
         <option value="ru">Roman Urdu</option>
       </select>
     </div>

@@ -393,15 +393,17 @@ const SCHEME_KEY='fuelDipColorScheme';
 const SCHEME_ICONS={
   shell:   { 192:'icon-192-shell.png',   512:'icon-512-shell.png' },
   classic: { 192:'icon-192-classic.png', 512:'icon-512-classic.png' },
-  v1:      { 192:'icon-192-v1.png',      512:'icon-512-v1.png' }
+  v1:      { 192:'icon-192-v1.png',      512:'icon-512-v1.png' },
+  win11:   { 192:'icon-192-win11.png',   512:'icon-512-win11.png' }
 };
 
 function applyScheme(scheme){
-  const valid=['shell','classic','v1'];
+  const valid=['shell','classic','v1','win11'];
   const s = valid.includes(scheme) ? scheme : 'shell';
   document.body.classList.toggle('theme-shell', s==='shell');
   document.body.classList.toggle('theme-classic', s==='classic');
   document.body.classList.toggle('theme-v1', s==='v1');
+  document.body.classList.toggle('theme-win11', s==='win11');
 
   const sel=document.getElementById('colorSchemeSelect');
   if(sel) sel.value=s;
@@ -430,6 +432,30 @@ function onSchemeChange(value){
   applyScheme(saved);
 })();
 
+/* ---------- View Settings (Mobile View / Desktop View) ---------- */
+const VIEW_KEY='fuelDipViewMode';
+
+function applyViewMode(mode){
+  const valid=['mobile','desktop'];
+  const m = valid.includes(mode) ? mode : 'mobile';
+  document.body.classList.toggle('view-mobile', m==='mobile');
+  document.body.classList.toggle('view-desktop', m==='desktop');
+  document.querySelectorAll('.view-toggle-btn').forEach(function(btn){
+    btn.classList.toggle('is-selected', btn.dataset.view===m);
+  });
+}
+
+function onViewModeChange(value){
+  applyViewMode(value);
+  try{ localStorage.setItem(VIEW_KEY,value); }catch(e){}
+}
+
+(function initViewMode(){
+  let saved='mobile';
+  try{ saved=localStorage.getItem(VIEW_KEY)||'mobile'; }catch(e){}
+  applyViewMode(saved);
+})();
+
 /* ---------- Language (English / Urdu / Roman Urdu) ---------- */
 const LANG_KEY='fuelDipLanguage';
 
@@ -440,15 +466,7 @@ const I18N={
     'tank.save':'💾 Save reading', 'tank.copy':'📋 Copy Result', 'tank.clear':'✕ Clear',
     'tank.reverseLookup':'🔄 Reverse Lookup — Litres → Dip', 'tank.enterLitres':'⛽ Enter litres', 'tank.estimatedDip':'📏 Estimated Dip',
     'settings.title':'⚙️ App Settings', 'settings.colorScheme':'🎨 Color Scheme', 'settings.language':'🌐 Language',
-    'settings.pinLock':'🔒 PIN Lock', 'settings.about':'ℹ️ About Application'
-  },
-  ur:{
-    'nav.home':'ہوم', 'nav.tanks':'ٹینکس', 'nav.reports':'رپورٹس', 'nav.chart':'ڈپ چارٹ', 'nav.settings':'ترتیبات',
-    'tank.dipReading':'📏 ڈپ ریڈنگ', 'tank.availableFuel':'⛽ دستیاب فیول', 'tank.note':'📝 نوٹ (اختیاری)',
-    'tank.save':'💾 ریڈنگ محفوظ کریں', 'tank.copy':'📋 نتیجہ کاپی کریں', 'tank.clear':'✕ صاف کریں',
-    'tank.reverseLookup':'🔄 ریورس لُک اَپ — لیٹرز → ڈپ', 'tank.enterLitres':'⛽ لیٹرز درج کریں', 'tank.estimatedDip':'📏 تخمینی ڈپ',
-    'settings.title':'⚙️ ایپ کی ترتیبات', 'settings.colorScheme':'🎨 کلر تھیم', 'settings.language':'🌐 زبان',
-    'settings.pinLock':'🔒 پن لاک', 'settings.about':'ℹ️ ایپ کے بارے میں'
+    'settings.pinLock':'🔒 PIN Lock', 'settings.about':'ℹ️ About Application', 'settings.viewMode':'📐 View Settings'
   },
   ru:{
     'nav.home':'Home', 'nav.tanks':'Tanks', 'nav.reports':'Reports', 'nav.chart':'Dip Chart', 'nav.settings':'Settings',
@@ -456,12 +474,12 @@ const I18N={
     'tank.save':'💾 Reading Save Karein', 'tank.copy':'📋 Result Copy Karein', 'tank.clear':'✕ Clear Karein',
     'tank.reverseLookup':'🔄 Reverse Lookup — Litres → Dip', 'tank.enterLitres':'⛽ Litres Darj Karein', 'tank.estimatedDip':'📏 Takhmeeni Dip',
     'settings.title':'⚙️ App Settings', 'settings.colorScheme':'🎨 Color Theme', 'settings.language':'🌐 Zabaan',
-    'settings.pinLock':'🔒 PIN Lock', 'settings.about':'ℹ️ App Ke Baare Mein'
+    'settings.pinLock':'🔒 PIN Lock', 'settings.about':'ℹ️ App Ke Baare Mein', 'settings.viewMode':'📐 View Settings'
   }
 };
 
 function applyLanguage(lang){
-  const valid=['en','ur','ru'];
+  const valid=['en','ru'];
   const l = valid.includes(lang) ? lang : 'en';
   const dict = I18N[l];
 
@@ -553,9 +571,15 @@ function openSettings(){
 
   const currentScheme = document.body.classList.contains('theme-v1') ? 'v1'
     : document.body.classList.contains('theme-classic') ? 'classic'
+    : document.body.classList.contains('theme-win11') ? 'win11'
     : 'shell';
   document.querySelectorAll('.theme-preview-card').forEach(function(card){
     card.classList.toggle('is-selected', card.dataset.scheme===currentScheme);
+  });
+
+  const currentView = document.body.classList.contains('view-desktop') ? 'desktop' : 'mobile';
+  document.querySelectorAll('.view-toggle-btn').forEach(function(btn){
+    btn.classList.toggle('is-selected', btn.dataset.view===currentView);
   });
 
   const langSel=document.getElementById('languageSelect');
