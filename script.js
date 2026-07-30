@@ -589,6 +589,9 @@ function openSettings(){
     langSel.value=savedLang;
   }
 
+  renderLastBackupInfo();
+  loadSiteDetailsIntoSettings();
+
   modal.style.display='flex';
 }
 
@@ -661,14 +664,188 @@ function savePin(){
   document.getElementById('confirmPin').value='';
 }
 
+/* ---------- Backup & Restore ---------- */
+const BACKUP_TIME_KEY='fuelDipLastBackup';
+
+function formatBackupDate(ts){
+  if(!ts) return null;
+  try{
+    const d=new Date(Number(ts));
+    if(isNaN(d.getTime())) return null;
+    return d.toLocaleString(undefined,{ day:'2-digit', month:'short', year:'numeric', hour:'2-digit', minute:'2-digit' });
+  }catch(e){ return null; }
+}
+
+function renderLastBackupInfo(){
+  const el=document.getElementById('lastBackupInfo');
+  if(!el) return;
+  let ts=null;
+  try{ ts=localStorage.getItem(BACKUP_TIME_KEY); }catch(e){}
+  const formatted=formatBackupDate(ts);
+  el.innerText='Last backup: '+(formatted || 'Never');
+}
+
+function downloadBackup(){
+  try{
+    const data={};
+    for(let i=0;i<localStorage.length;i++){
+      const k=localStorage.key(i);
+      data[k]=localStorage.getItem(k);
+    }
+    const nowTs=Date.now();
+    const backup={
+      app:'Fuel Dip Calculator',
+      exportedAt:new Date(nowTs).toISOString(),
+      data:data
+    };
+    const blob=new Blob([JSON.stringify(backup,null,2)],{type:'application/json'});
+    const url=URL.createObjectURL(blob);
+    const stamp=new Date(nowTs).toISOString().slice(0,19).replace(/[:T]/g,'-');
+    const a=document.createElement('a');
+    a.href=url;
+    a.download='fuel-dip-backup-'+stamp+'.json';
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    setTimeout(function(){ URL.revokeObjectURL(url); },1000);
+
+    try{ localStorage.setItem(BACKUP_TIME_KEY,String(nowTs)); }catch(e){}
+    renderLastBackupInfo();
+  }catch(e){
+    alert('Backup download nahi ho saka. Dobara koshish karein.');
+  }
+}
+
+function triggerRestoreFile(){
+  const input=document.getElementById('restoreFileInput');
+  if(input) input.click();
+}
+
+function restoreBackupFile(input){
+  const file=input.files && input.files[0];
+  if(!file) return;
+
+  const reader=new FileReader();
+  reader.onload=function(e){
+    let parsed;
+    try{
+      parsed=JSON.parse(e.target.result);
+    }catch(err){
+      alert('Ye sahi backup file nahi hai.');
+      input.value='';
+      return;
+    }
+
+    if(!parsed || typeof parsed.data!=='object' || parsed.data===null){
+      alert('Ye sahi backup file nahi hai.');
+      input.value='';
+      return;
+    }
+
+    const itemCount=Object.keys(parsed.data).length;
+    const whenText=parsed.exportedAt ? (formatBackupDate(new Date(parsed.exportedAt).getTime())||parsed.exportedAt) : 'unknown date';
+    const ok=confirm('Backup file mili — '+whenText+' ki ('+itemCount+' items).\n\nYe maujooda data ko replace kar dega. Continue karein?');
+    if(!ok){
+      input.value='';
+      return;
+    }
+
+    try{
+      Object.keys(parsed.data).forEach(function(k){
+        localStorage.setItem(k,parsed.data[k]);
+      });
+      alert('Backup restore ho gayi! App ab reload ho raha hai.');
+      location.reload();
+    }catch(err){
+      alert('Restore karte waqt masla hua. Dobara koshish karein.');
+    }
+    input.value='';
+  };
+  reader.onerror=function(){
+    alert('File parh nahi saki. Dobara koshish karein.');
+    input.value='';
+  };
+  reader.readAsText(file);
+}
+
+/* ---------- Site Name & Address ---------- */
+const SITE_NAME_KEY='fuelDipSiteName';
+const SITE_ADDRESS_KEY='fuelDipSiteAddress';
+
+function applySiteDetails(){
+  let name='', address='';
+  try{
+    name=localStorage.getItem(SITE_NAME_KEY)||'';
+    address=localStorage.getItem(SITE_ADDRESS_KEY)||'';
+  }catch(e){}
+
+  const nameEl=document.getElementById('customerNameDisplay');
+  if(nameEl && name){ nameEl.textContent=name; }
+
+  const addrEl=document.getElementById('plateAddress');
+  if(addrEl){
+    if(address){
+      addrEl.textContent=address;
+      addrEl.style.display='block';
+    }else{
+      addrEl.style.display='none';
+    }
+  }
+}
+
+function loadSiteDetailsIntoSettings(){
+  const nameInput=document.getElementById('siteNameInput');
+  const addrInput=document.getElementById('siteAddressInput');
+  if(!nameInput || !addrInput) return;
+
+  let savedName='', savedAddress='';
+  try{
+    savedName=localStorage.getItem(SITE_NAME_KEY)||'';
+    savedAddress=localStorage.getItem(SITE_ADDRESS_KEY)||'';
+  }catch(e){}
+
+  const nameEl=document.getElementById('customerNameDisplay');
+  nameInput.value=savedName || (nameEl ? nameEl.textContent.trim() : '');
+  addrInput.value=savedAddress;
+
+  const msg=document.getElementById('siteDetailsMsg');
+  if(msg){ msg.innerText=''; msg.className='pin-setup-msg'; }
+}
+
+function saveSiteDetails(){
+  const nameInput=document.getElementById('siteNameInput');
+  const addrInput=document.getElementById('siteAddressInput');
+  const msg=document.getElementById('siteDetailsMsg');
+
+  const name=nameInput.value.trim();
+  const address=addrInput.value.trim();
+
+  if(name===''){
+    msg.innerText='Site name khali nahi ho sakta.';
+    msg.className='pin-setup-msg err';
+    return;
+  }
+
+  try{
+    localStorage.setItem(SITE_NAME_KEY,name);
+    localStorage.setItem(SITE_ADDRESS_KEY,address);
+  }catch(e){}
+
+  applySiteDetails();
+  msg.innerText='Site details save ho gayi.';
+  msg.className='pin-setup-msg ok';
+}
+
 /* ---------- Bismillah splash screen ---------- */
 function hideSplashAndReveal(){
   const splash=document.getElementById('splashScreen');
+  applySiteDetails();
   checkLockOnLoad();
   if(!splash) return;
   splash.classList.add('splash-hide');
   setTimeout(function(){ splash.style.display='none'; },650);
 }
+applySiteDetails();
 setTimeout(hideSplashAndReveal,4800);
 
 /* ---------- Dip Chart page (multi-tank calibration reference table) ---------- */

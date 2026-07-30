@@ -124,6 +124,25 @@
       </select>
     </div>
 
+    <div class="modal-row modal-row-stack">
+      <div>
+        <div class="modal-row-title">🏢 Site Name &amp; Address</div>
+        <div class="modal-row-sub">Header par dikhne wala site ka naam aur address</div>
+      </div>
+      <div class="pin-setup" style="display:flex;">
+        <label class="field">
+          <span class="field-label">Site Name</span>
+          <input id="siteNameInput" class="settings-input" type="text" autocomplete="off" placeholder="e.g. Al Mukhtar Petroleum">
+        </label>
+        <label class="field">
+          <span class="field-label">Address</span>
+          <input id="siteAddressInput" class="settings-input" type="text" autocomplete="off" placeholder="e.g. Rahim Yar Khan, Punjab">
+        </label>
+        <div id="siteDetailsMsg" class="pin-setup-msg"></div>
+        <button type="button" class="save-btn" onclick="saveSiteDetails()">Save</button>
+      </div>
+    </div>
+
     <div class="modal-row">
       <div>
         <div class="modal-row-title" data-i18n="settings.pinLock">🔒 PIN Lock</div>
@@ -146,6 +165,19 @@
       </label>
       <div id="pinSetupMsg" class="pin-setup-msg"></div>
       <button type="button" class="save-btn" onclick="savePin()">Save PIN</button>
+    </div>
+
+    <div class="modal-row modal-row-stack">
+      <div>
+        <div class="modal-row-title">💾 Backup &amp; Restore</div>
+        <div class="modal-row-sub" id="lastBackupInfo">Last backup: Never</div>
+      </div>
+      <div class="backup-restore-grid">
+        <button type="button" class="save-btn" onclick="downloadBackup()">⬇ Download backup</button>
+        <button type="button" class="save-btn save-btn-secondary" onclick="triggerRestoreFile()">⬆ Restore from backup</button>
+      </div>
+      <input type="file" id="restoreFileInput" accept=".json,application/json" style="display:none;" onchange="restoreBackupFile(this)">
+      <div class="modal-row-sub">Backup file mein aapki poori history, settings aur PIN shamil hote hain. Ise Google Drive, WhatsApp ya Email kar ke mehfooz rakhein.</div>
     </div>
 
     <button type="button" class="modal-row modal-row-link" onclick="closeSettings();openAbout();">
@@ -188,6 +220,8 @@
         <li>Multiple Color Themes</li>
         <li>Fast &amp; Responsive Interface</li>
         <li>Manual Calibration Chart Support</li>
+        <li>Data Backup &amp; Restore (JSON File)</li>
+        <li>Editable Site Name &amp; Address</li>
       </ul>
 
       <hr class="about-divider">
@@ -206,11 +240,14 @@
       <hr class="about-divider">
 
       <h3 class="about-heading">Developed By</h3>
-      <p class="about-text">
-        <strong>WaQaR Ali</strong><br>
-        Founder &amp; Developer<br>
-        Digital Solutions
-      </p>
+      <div class="about-dev-block">
+        <img class="about-dev-logo" src="dev-logo.png" alt="Digital Solutions Logo">
+        <p class="about-text">
+          <strong>WaQaR Ali</strong><br>
+          Founder &amp; Developer<br>
+          Digital Solutions
+        </p>
+      </div>
 
       <hr class="about-divider">
 
@@ -246,7 +283,8 @@
   <header class="site-head">
     <div class="plate">
       <div class="plate-badge">🛢 Fuel Management System</div>
-      <h1 class="customer-name">Al Mukhtar Petroleum</h1>
+      <h1 class="customer-name" id="customerNameDisplay">Al Mukhtar Petroleum</h1>
+      <p class="plate-address" id="plateAddress" style="display:none;"></p>
       <p class="plate-tagline">Fuel Dip Calculator</p>
       <div class="plate-clock" id="clock">—</div>
     </div>
@@ -269,7 +307,7 @@
 
     <div class="dev-panel dev-panel-v2">
       <div class="dev-header">
-        <span class="dev-avatar">👨‍💻</span>
+        <span class="dev-avatar dev-avatar-logo"><img src="dev-logo.png" alt="Digital Solutions Logo"></span>
         <div class="dev-header-text">
           <div class="dev-role">Developed by</div>
           <div class="dev-name">Digital Solutions Rahim Yar Khan</div>
