@@ -1050,3 +1050,233 @@ function showPanel(navId){
     item.classList.toggle('is-active', item.dataset.nav===navId);
   });
 }
+
+/* ================= Fuel Tanker Unloading Status ================= */
+const UNLOAD_TANKS={ t50:{data:tank50,label:'50-KL Tank'}, t25:{data:tank25,label:'25-KL Tank'} };
+const UNLOAD_HISTORY_KEY='fuelTankerUnloadHistory';
+const UNLOAD_HISTORY_LIMIT=200;
+
+function fmtNum(x){
+  if(x==null||isNaN(x)) return '0.00';
+  return x.toLocaleString('en-US',{minimumFractionDigits:2,maximumFractionDigits:2});
+}
+
+function calcUnload(){
+  const tankSel=document.getElementById('ul_tank').value;
+  const tank=UNLOAD_TANKS[tankSel];
+  const curDip=parseFloat(document.getElementById('ul_curDip').value);
+  const prvDip=parseFloat(document.getElementById('ul_prvDip').value);
+  const saleInput=parseFloat(document.getElementById('ul_sale').value);
+  const invInput=parseFloat(document.getElementById('ul_invStock').value);
+
+  const curLtrs = isNaN(curDip)?null:interp(tank.data,curDip);
+  const prvLtrs = isNaN(prvDip)?null:interp(tank.data,prvDip);
+
+  document.getElementById('ul_curLtrs').innerText = curLtrs!=null ? fmtNum(curLtrs)+' L' : '— L';
+  document.getElementById('ul_prvLtrs').innerText = prvLtrs!=null ? fmtNum(prvLtrs)+' L' : '— L';
+
+  let balance=null;
+  if(curLtrs!=null && prvLtrs!=null) balance=curLtrs-prvLtrs;
+  document.getElementById('ul_balance').innerText = fmtNum(balance);
+
+  const sale = isNaN(saleInput)?0:saleInput;
+  const totalLiters = balance!=null ? balance+sale : null;
+  document.getElementById('ul_totalLiters').innerText = fmtNum(totalLiters);
+  document.getElementById('ul_totalStock').innerText = fmtNum(totalLiters);
+
+  const invStock = isNaN(invInput)?null:invInput;
+  let stEx=null;
+  if(totalLiters!=null && invStock!=null) stEx = totalLiters - invStock;
+  const stExEl=document.getElementById('ul_stEx');
+  stExEl.innerText = stEx!=null ? (stEx>=0?'+':'')+fmtNum(stEx) : '0.00';
+  stExEl.classList.toggle('is-excess', stEx!=null && stEx>0);
+  stExEl.classList.toggle('is-short', stEx!=null && stEx<0);
+
+  updateUnloadReceipt();
+}
+
+function gatherUnloadData(){
+  const tankSel=document.getElementById('ul_tank').value;
+  const tank=UNLOAD_TANKS[tankSel];
+  return {
+    date: document.getElementById('ul_date').value || new Date().toISOString().slice(0,10),
+    vendor: document.getElementById('ul_vendor').value.trim(),
+    vehicle: document.getElementById('ul_vehicle').value.trim(),
+    driver: document.getElementById('ul_driver').value.trim(),
+    contact: document.getElementById('ul_contact').value.trim(),
+    tankLabel: tank.label,
+    curDip: document.getElementById('ul_curDip').value,
+    curLtrs: document.getElementById('ul_curLtrs').innerText,
+    prvDip: document.getElementById('ul_prvDip').value,
+    prvLtrs: document.getElementById('ul_prvLtrs').innerText,
+    balance: document.getElementById('ul_balance').innerText,
+    sale: document.getElementById('ul_sale').value || '0',
+    totalLiters: document.getElementById('ul_totalLiters').innerText,
+    totalStock: document.getElementById('ul_totalStock').innerText,
+    invStock: document.getElementById('ul_invStock').value,
+    stEx: document.getElementById('ul_stEx').innerText,
+    savedAt: new Date().toLocaleString(undefined,{day:'2-digit',month:'short',year:'numeric',hour:'2-digit',minute:'2-digit'})
+  };
+}
+
+function updateUnloadReceipt(){
+  const d=gatherUnloadData();
+  document.getElementById('rc_date').innerText = d.date || '-';
+  document.getElementById('rc_vendor').innerText = d.vendor || '-';
+  document.getElementById('rc_vehicle').innerText = d.vehicle || '-';
+  document.getElementById('rc_driver').innerText = d.driver || '-';
+  document.getElementById('rc_contact').innerText = d.contact || '-';
+  document.getElementById('rc_tank').innerText = d.tankLabel || '-';
+  document.getElementById('rc_curDip').innerText = d.curDip? d.curDip+' mm':'-';
+  document.getElementById('rc_curLtrs').innerText = d.curLtrs || '-';
+  document.getElementById('rc_prvDip').innerText = d.prvDip? d.prvDip+' mm':'-';
+  document.getElementById('rc_prvLtrs').innerText = d.prvLtrs || '-';
+  document.getElementById('rc_balance').innerText = d.balance;
+  document.getElementById('rc_sale').innerText = d.sale;
+  document.getElementById('rc_totalLiters').innerText = d.totalLiters;
+  document.getElementById('rc_totalStock').innerText = d.totalStock;
+  document.getElementById('rc_invStock').innerText = d.invStock || '-';
+  document.getElementById('rc_stEx').innerText = d.stEx;
+  const footer=document.getElementById('rc_footer');
+  if(footer) footer.innerText='Generated: '+new Date().toLocaleString();
+}
+
+/* ---------- Unload history (save / render / delete / clear) ---------- */
+function loadUnloadHistory(){
+  try{ return JSON.parse(localStorage.getItem(UNLOAD_HISTORY_KEY))||[]; }catch(e){ return []; }
+}
+function persistUnloadHistory(list){
+  try{ localStorage.setItem(UNLOAD_HISTORY_KEY,JSON.stringify(list)); }catch(e){}
+}
+
+function saveUnloadEntry(){
+  calcUnload();
+  const d=gatherUnloadData();
+  if(!d.vendor && !d.vehicle){
+    alert('Vendor Name ya Vehicle No zaroor darj karein.');
+    return;
+  }
+  const list=loadUnloadHistory();
+  list.unshift(d);
+  if(list.length>UNLOAD_HISTORY_LIMIT) list.length=UNLOAD_HISTORY_LIMIT;
+  persistUnloadHistory(list);
+  renderUnloadHistory();
+  alert('Unloading record save ho gaya.');
+}
+
+function clearUnloadHistory(){
+  const list=loadUnloadHistory();
+  if(list.length===0) return;
+  if(!confirm('Clear all '+list.length+' unloading records?\n\nThis cannot be undone.')) return;
+  persistUnloadHistory([]);
+  renderUnloadHistory();
+}
+
+function deleteUnloadEntry(index){
+  const list=loadUnloadHistory();
+  if(index<0||index>=list.length) return;
+  const e=list[index];
+  if(!confirm('Delete this unloading record?\n\n'+(e.vehicle||e.vendor||'')+' — '+e.date)) return;
+  list.splice(index,1);
+  persistUnloadHistory(list);
+  renderUnloadHistory();
+}
+
+function renderUnloadHistory(){
+  const container=document.getElementById('unloadHistoryList');
+  if(!container) return;
+  const list=loadUnloadHistory();
+
+  if(list.length===0){
+    container.innerHTML='<div class="history-empty">No unloading records saved yet.</div>';
+    return;
+  }
+
+  container.innerHTML=list.map((e,i)=>
+    '<div class="history-row">'+
+      '<span class="history-tank">'+escapeHtml(e.vehicle||e.vendor||'—')+'</span>'+
+      '<span class="history-dip">'+escapeHtml(e.tankLabel||'')+'</span>'+
+      '<span class="history-vol">'+escapeHtml(e.totalLiters||'0.00')+' L</span>'+
+      '<span class="history-time">'+escapeHtml(e.date||'')+'</span>'+
+      '<button type="button" class="history-delete" onclick="deleteUnloadEntry('+i+')" aria-label="Delete this record">✕</button>'+
+    '</div>'
+  ).join('');
+}
+
+/* ---------- Print unloading status (opens print-ready window) ---------- */
+function printUnload(){
+  calcUnload();
+  const d=gatherUnloadData();
+  const w=window.open('','_blank');
+  if(!w){ alert('Popup blocked. Please allow popups to print.'); return; }
+
+  const html='<!doctype html><html><head><meta charset="utf-8"><title>Unloading Status</title>'+
+    '<style>'+
+    'body{font-family:Arial,Helvetica,sans-serif;padding:24px;color:#1a1a1a;}'+
+    'h2{background:#37474f;color:#fff;padding:12px 14px;margin:0 0 16px;border-radius:6px;font-size:18px;}'+
+    'table{width:100%;border-collapse:collapse;margin-bottom:16px;}'+
+    'td,th{border:1px solid #999;padding:8px 10px;font-size:14px;}'+
+    'td:first-child{font-weight:700;background:#f3f3f3;width:42%;}'+
+    'th{background:#eceff1;font-weight:700;}'+
+    '.total-row td{font-weight:800;background:#fff8e1;}'+
+    'p.foot{font-size:11px;color:#777;margin-top:20px;}'+
+    '</style></head><body>'+
+    '<h2>Vehicle Unloading Tank Status</h2>'+
+    '<table>'+
+      '<tr><td>Date</td><td>'+escapeHtml(d.date)+'</td></tr>'+
+      '<tr><td>Vendor Name</td><td>'+escapeHtml(d.vendor||'-')+'</td></tr>'+
+      '<tr><td>Vehicle No</td><td>'+escapeHtml(d.vehicle||'-')+'</td></tr>'+
+      '<tr><td>Driver Name</td><td>'+escapeHtml(d.driver||'-')+'</td></tr>'+
+      '<tr><td>Contact No</td><td>'+escapeHtml(d.contact||'-')+'</td></tr>'+
+      '<tr><td>Unloading Tank</td><td>'+escapeHtml(d.tankLabel)+'</td></tr>'+
+    '</table>'+
+    '<table>'+
+      '<tr><th>Description</th><th>Dips</th><th>Ltrs</th></tr>'+
+      '<tr><td>Current Dip &amp; Ltrs</td><td>'+(d.curDip?d.curDip+' mm':'-')+'</td><td>'+d.curLtrs+'</td></tr>'+
+      '<tr><td>Prv Dip &amp; Ltrs</td><td>'+(d.prvDip?d.prvDip+' mm':'-')+'</td><td>'+d.prvLtrs+'</td></tr>'+
+      '<tr><td colspan="2">Balance Liters</td><td>'+d.balance+'</td></tr>'+
+      '<tr><td colspan="2">Sale Liters</td><td>'+d.sale+'</td></tr>'+
+      '<tr class="total-row"><td colspan="2">TOTAL LITERS</td><td>'+d.totalLiters+'</td></tr>'+
+    '</table>'+
+    '<table>'+
+      '<tr><td>TOTAL STOCK</td><td>'+d.totalStock+'</td></tr>'+
+      '<tr><td>INV STOCK</td><td>'+(d.invStock||'-')+'</td></tr>'+
+      '<tr><td>ST / EX LITER</td><td>'+d.stEx+'</td></tr>'+
+    '</table>'+
+    '<p class="foot">Generated: '+new Date().toLocaleString()+'</p>'+
+    '</body></html>';
+
+  w.document.write(html);
+  w.document.close();
+  w.onload=function(){ w.focus(); w.print(); };
+}
+
+/* ---------- Share unloading status as image (PNG) ---------- */
+async function shareUnloadImage(){
+  calcUnload();
+  if(!window.html2canvas){
+    alert('Image share needs an internet connection to load the first time. Please check your connection and try again.');
+    return;
+  }
+  const el=document.getElementById('unloadReceipt');
+  try{
+    const canvas=await html2canvas(el,{scale:2,backgroundColor:'#ffffff'});
+    canvas.toBlob(function(blob){
+      if(!blob) return;
+      const stamp=new Date().toISOString().slice(0,10);
+      shareOrDownloadBlob(blob,'unloading-status-'+stamp+'.png','image/png');
+    },'image/png');
+  }catch(e){
+    alert('Image banate waqt masla hua. Dobara koshish karein.');
+  }
+}
+
+/* ---------- Init ---------- */
+(function initUnload(){
+  const dateInput=document.getElementById('ul_date');
+  if(dateInput && !dateInput.value){
+    dateInput.value=new Date().toISOString().slice(0,10);
+  }
+  calcUnload();
+  renderUnloadHistory();
+})();

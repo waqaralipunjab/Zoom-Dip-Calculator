@@ -15,6 +15,7 @@
 <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.8.2/jspdf.plugin.autotable.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
 </head>
 <body>
 
@@ -534,6 +535,125 @@
   </section>
 </div>
 
+<!-- ===== UNLOADING STATUS PANEL ===== -->
+<div class="app-panel" id="panelUnload" data-panel="navUnload" style="display:none;">
+  <section class="chart-section">
+    <div class="chart-head">
+      <span class="chart-title">🚛 Fuel Tanker Unloading Status</span>
+      <span class="chart-note">Vehicle unloading tank check</span>
+    </div>
+
+    <div class="unload-form-grid">
+      <label class="field">
+        <span class="field-label">📅 Date</span>
+        <input id="ul_date" class="settings-input" type="date">
+      </label>
+      <label class="field">
+        <span class="field-label">🏢 Vendor Name</span>
+        <input id="ul_vendor" class="settings-input" type="text" autocomplete="off" placeholder="e.g. Zoom Petroleum Pvt Ltd." oninput="calcUnload()">
+      </label>
+      <label class="field">
+        <span class="field-label">🚚 Vehicle No</span>
+        <input id="ul_vehicle" class="settings-input" type="text" autocomplete="off" placeholder="e.g. AAET-238" oninput="calcUnload()">
+      </label>
+      <label class="field">
+        <span class="field-label">👤 Driver Name</span>
+        <input id="ul_driver" class="settings-input" type="text" autocomplete="off" placeholder="e.g. Ghulam Abbas" oninput="calcUnload()">
+      </label>
+      <label class="field">
+        <span class="field-label">📞 Contact No</span>
+        <input id="ul_contact" class="settings-input" type="text" autocomplete="off" placeholder="e.g. 0306-4665384" oninput="calcUnload()">
+      </label>
+      <label class="field">
+        <span class="field-label">🛢 Unloading Tank</span>
+        <select id="ul_tank" class="scheme-select" onchange="calcUnload()">
+          <option value="t50">50-KL Tank</option>
+          <option value="t25">25-KL Tank</option>
+        </select>
+      </label>
+    </div>
+
+    <div class="unload-divider"><span>📏 Dip Readings</span></div>
+
+    <div class="unload-row">
+      <span class="unload-row-label">Current Dip &amp; Ltrs</span>
+      <span class="field-input-wrap unload-row-input">
+        <input id="ul_curDip" inputmode="decimal" autocomplete="off" placeholder="mm" oninput="calcUnload()">
+        <span class="field-suffix">mm</span>
+      </span>
+      <span class="unload-row-ltrs" id="ul_curLtrs">— L</span>
+    </div>
+    <div class="unload-row">
+      <span class="unload-row-label">Prv Dip &amp; Ltrs</span>
+      <span class="field-input-wrap unload-row-input">
+        <input id="ul_prvDip" inputmode="decimal" autocomplete="off" placeholder="mm" oninput="calcUnload()">
+        <span class="field-suffix">mm</span>
+      </span>
+      <span class="unload-row-ltrs" id="ul_prvLtrs">— L</span>
+    </div>
+
+    <div class="unload-summary">
+      <div class="unload-sum-row"><span>Balance Liters</span><strong id="ul_balance">0.00</strong></div>
+      <div class="unload-sum-row">
+        <span>Sale Liters</span>
+        <input id="ul_sale" class="unload-inline-input" inputmode="decimal" autocomplete="off" placeholder="0" oninput="calcUnload()">
+      </div>
+      <div class="unload-sum-row is-total"><span>TOTAL LITERS</span><strong id="ul_totalLiters">0.00</strong></div>
+      <div class="unload-sum-row is-total"><span>TOTAL STOCK</span><strong id="ul_totalStock">0.00</strong></div>
+      <div class="unload-sum-row">
+        <span>Inv Stock</span>
+        <input id="ul_invStock" class="unload-inline-input" inputmode="decimal" autocomplete="off" placeholder="0" oninput="calcUnload()">
+      </div>
+      <div class="unload-sum-row is-final"><span>ST / EX Liter</span><strong id="ul_stEx">0.00</strong></div>
+    </div>
+
+    <div class="btn-row">
+      <button type="button" class="save-btn" onclick="saveUnloadEntry()">💾 Save</button>
+      <button type="button" class="copy-btn" onclick="printUnload()">🖨️ Print</button>
+      <button type="button" class="copy-btn" onclick="shareUnloadImage()">📤 Share Image</button>
+    </div>
+  </section>
+
+  <section class="history">
+    <div class="history-head">
+      <span class="history-title">📜 Unloading History</span>
+      <div class="history-actions">
+        <button type="button" class="history-clear" onclick="clearUnloadHistory()">Clear</button>
+      </div>
+    </div>
+    <div id="unloadHistoryList" class="history-list">
+      <div class="history-empty">No unloading records saved yet.</div>
+    </div>
+  </section>
+</div>
+
+</div>
+
+<!-- ===== Off-screen printable/shareable unloading receipt (captured via html2canvas) ===== -->
+<div id="unloadReceipt" class="unload-receipt">
+  <div class="unload-receipt-head">Vehicle Unloading Tank Status</div>
+  <table class="unload-receipt-table">
+    <tr><td>Date :</td><td id="rc_date">-</td></tr>
+    <tr><td>Vendor Name:</td><td id="rc_vendor">-</td></tr>
+    <tr><td>Vehicle No:</td><td id="rc_vehicle">-</td></tr>
+    <tr><td>Driver Name:</td><td id="rc_driver">-</td></tr>
+    <tr><td>Contact No:</td><td id="rc_contact">-</td></tr>
+    <tr><td>Unloading Tank:</td><td id="rc_tank">-</td></tr>
+  </table>
+  <table class="unload-receipt-table2">
+    <tr><th>Description</th><th>Dips</th><th>Ltrs</th></tr>
+    <tr><td>Current Dip &amp; Ltrs.</td><td id="rc_curDip">-</td><td id="rc_curLtrs">-</td></tr>
+    <tr><td>Prv Dip &amp; Ltrs</td><td id="rc_prvDip">-</td><td id="rc_prvLtrs">-</td></tr>
+    <tr><td colspan="2">Balance Liters</td><td id="rc_balance">-</td></tr>
+    <tr><td colspan="2">Sale Liters</td><td id="rc_sale">-</td></tr>
+    <tr class="rc-total-row"><td colspan="2">TOTAL LITERS</td><td id="rc_totalLiters">-</td></tr>
+  </table>
+  <table class="unload-receipt-table2">
+    <tr><td>TOTAL STOCK</td><td id="rc_totalStock">-</td></tr>
+    <tr><td>INV STOCK</td><td id="rc_invStock">-</td></tr>
+    <tr><td>ST/ EX LITER</td><td id="rc_stEx">-</td></tr>
+  </table>
+  <div class="unload-receipt-footer" id="rc_footer">Generated by Fuel Dip Calculator</div>
 </div>
 
 <!-- ===== BOTTOM NAV (mobile) ===== -->
@@ -549,6 +669,9 @@
   </button>
   <button type="button" class="nav-item" data-nav="navChart" onclick="showPanel('navChart')">
     <span class="nav-icon">📋</span><span class="nav-label" data-i18n="nav.chart">Dip Chart</span>
+  </button>
+  <button type="button" class="nav-item" data-nav="navUnload" onclick="showPanel('navUnload')">
+    <span class="nav-icon">🚛</span><span class="nav-label">Unload</span>
   </button>
   <button type="button" class="nav-item nav-item-btn" onclick="openSettings()">
     <span class="nav-icon">⚙️</span><span class="nav-label" data-i18n="nav.settings">Settings</span>
