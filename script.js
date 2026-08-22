@@ -4,6 +4,47 @@ function formatLiters(x){
   return x.toLocaleString('en-US',{minimumFractionDigits:1,maximumFractionDigits:1})+' L';
 }
 
+/* ---------- Consistent Date-Month-Year format (DD-MMM-YYYY) ---------- */
+const MONTHS_SHORT=['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+function formatDateDMY(d){
+  if(!(d instanceof Date) || isNaN(d.getTime())) d=new Date();
+  const day=String(d.getDate()).padStart(2,'0');
+  const month=MONTHS_SHORT[d.getMonth()];
+  const year=d.getFullYear();
+  return day+'-'+month+'-'+year;
+}
+function formatDateTimeDMY(d){
+  if(!(d instanceof Date) || isNaN(d.getTime())) d=new Date();
+  const datePart=formatDateDMY(d);
+  const h=String(d.getHours()).padStart(2,'0');
+  const m=String(d.getMinutes()).padStart(2,'0');
+  const s=String(d.getSeconds()).padStart(2,'0');
+  return datePart+'  '+h+':'+m+':'+s;
+}
+function formatTimeHM(d){
+  if(!(d instanceof Date) || isNaN(d.getTime())) d=new Date();
+  const h=String(d.getHours()).padStart(2,'0');
+  const m=String(d.getMinutes()).padStart(2,'0');
+  return h+':'+m;
+}
+function formatDayShort(d){
+  if(!(d instanceof Date) || isNaN(d.getTime())) d=new Date();
+  return d.toLocaleDateString(undefined,{weekday:'short'});
+}
+const SITE_NAME_KEY='fuelDipSiteName';
+const SITE_ADDRESS_KEY='fuelDipSiteAddress';
+function getSiteName(){
+  try{ return localStorage.getItem(SITE_NAME_KEY)||''; }catch(e){ return ''; }
+}
+function getSiteAddress(){
+  try{ return localStorage.getItem(SITE_ADDRESS_KEY)||''; }catch(e){ return ''; }
+}
+function getSiteHeaderText(){
+  const name=getSiteName() || (document.getElementById('customerNameDisplay')?document.getElementById('customerNameDisplay').textContent.trim():'') || 'Fuel Dip Calculator';
+  const addr=getSiteAddress();
+  return {name:name, address:addr};
+}
+
 /* ---------- Animated counter (smooth count-up for result values) ---------- */
 function animateCounter(el, toValue, formatFn, duration){
   formatFn = formatFn || formatLiters;
@@ -148,9 +189,9 @@ function tickClock(){
   const el=document.getElementById('clock');
   if(!el) return;
   const now=new Date();
-  const dayStr=now.toLocaleDateString(undefined,{weekday:'short'});
-  const dateStr=now.toLocaleDateString(undefined,{day:'2-digit',month:'short',year:'numeric'});
-  const timeStr=now.toLocaleTimeString(undefined,{hour:'2-digit',minute:'2-digit',second:'2-digit'});
+  const dayStr=formatDayShort(now);
+  const dateStr=formatDateDMY(now);
+  const timeStr=formatDateTimeDMY(now).split('  ')[1] || formatTimeHM(now);
   el.innerText=dayStr+', '+dateStr+'  •  '+timeStr;
 }
 setInterval(tickClock,1000);
@@ -193,8 +234,9 @@ function saveReading(inputId,tankLabel){
     dip:parseFloat(dip),
     volume:volumeText,
     note:noteInput?noteInput.value.trim():'',
-    day:now.toLocaleDateString(undefined,{weekday:'short'}),
-    time:now.toLocaleString(undefined,{day:'2-digit',month:'short',hour:'2-digit',minute:'2-digit'})
+    day:formatDayShort(now),
+    time:formatDateDMY(now)+' '+formatTimeHM(now),
+    ts:now.getTime()
   };
 
   const list=loadHistory();
@@ -241,15 +283,72 @@ function renderHistory(){
   }
 
   container.innerHTML=list.map((e,i)=>
-    '<div class="history-row'+(e.note?' has-note':'')+'">'+
-      '<span class="history-tank">'+e.tank+'</span>'+
+    '<div class="history-row history-row-clickable'+(e.note?' has-note':'')+'" onclick="viewReadingAsImage('+i+')" title="Tap to view as image">'+
+      '<span class="history-tank">'+escapeHtml(e.tank)+'</span>'+
       '<span class="history-dip">'+e.dip+' mm</span>'+
-      '<span class="history-vol">'+e.volume+'</span>'+
-      '<span class="history-time">'+(e.day?e.day+', ':'')+e.time+'</span>'+
-      '<button type="button" class="history-delete" onclick="deleteReading('+i+')" aria-label="Delete this reading">✕</button>'+
+      '<span class="history-vol">'+escapeHtml(e.volume)+'</span>'+
+      '<span class="history-time">'+(e.day?e.day+', ':'')+escapeHtml(e.time)+'</span>'+
+      '<button type="button" class="history-delete" onclick="event.stopPropagation();deleteReading('+i+')" aria-label="Delete this reading">✕</button>'+
       (e.note?'<span class="history-note">📝 '+escapeHtml(e.note)+'</span>':'')+
     '</div>'
   ).join('');
+}
+
+/* ---------- View reading history entry as image ---------- */
+async function viewReadingAsImage(index){
+  const list=loadHistory();
+  if(index<0||index>=list.length) return;
+  const e=list[index];
+  const site=getSiteHeaderText();
+
+  let card=document.getElementById('readingDetailCard');
+  if(!card){
+    card=document.createElement('div');
+    card.id='readingDetailCard';
+    card.className='unload-receipt reading-detail-card';
+    document.body.appendChild(card);
+  }
+
+  card.innerHTML=
+    '<div class="unload-receipt-head">'+(escapeHtml(site.name)||'Fuel Dip Reading')+'</div>'+
+    (site.address?'<div class="reading-detail-addr">'+escapeHtml(site.address)+'</div>':'')+
+    '<table class="unload-receipt-table">'+
+      '<tr><td>Tank</td><td>'+escapeHtml(e.tank)+'</td></tr>'+
+      '<tr><td>Dip</td><td>'+e.dip+' mm</td></tr>'+
+      '<tr><td>Volume</td><td>'+escapeHtml(e.volume)+'</td></tr>'+
+      '<tr><td>Date &amp; Time</td><td>'+(e.day?e.day+', ':'')+escapeHtml(e.time)+'</td></tr>'+
+      (e.note?'<tr><td>Note</td><td>'+escapeHtml(e.note)+'</td></tr>':'')+
+    '</table>'+
+    '<div class="unload-receipt-footer">Generated: '+formatDateTimeDMY(new Date())+'</div>';
+
+  if(!window.html2canvas){
+    alert('Image view needs an internet connection to load the first time. Please check your connection and try again.');
+    return;
+  }
+  try{
+    const canvas=await html2canvas(card,{scale:2,backgroundColor:'#ffffff'});
+    canvas.toBlob(function(blob){
+      if(!blob) return;
+      const url=URL.createObjectURL(blob);
+      const w=window.open('','_blank');
+      if(w){
+        w.document.write('<!doctype html><html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Reading Detail</title>'+
+          '<style>body{margin:0;padding:16px;background:#111;display:flex;flex-direction:column;align-items:center;min-height:100vh;box-sizing:border-box;font-family:system-ui,sans-serif;}'+
+          'img{max-width:100%;height:auto;border-radius:8px;box-shadow:0 8px 32px rgba(0,0,0,.4);}'+
+          '.actions{margin-top:16px;display:flex;gap:10px;flex-wrap:wrap;justify-content:center;}'+
+          'a,button{padding:10px 18px;border-radius:8px;border:none;font-size:15px;cursor:pointer;text-decoration:none;color:#fff;}'+
+          '.dl{background:#2563eb;} .cl{background:#64748b;}</style></head><body>'+
+          '<img src="'+url+'" alt="Reading detail">'+
+          '<div class="actions"><a class="dl" download="dip-reading-'+formatDateDMY(new Date())+'.png" href="'+url+'">⬇️ Download Image</a>'+
+          '<button class="cl" onclick="window.close()">Close</button></div></body></html>');
+        w.document.close();
+      }else{
+        shareOrDownloadBlob(blob,'dip-reading-'+formatDateDMY(new Date())+'.png','image/png');
+      }
+    },'image/png');
+  }catch(err){
+    alert('Image banate waqt masla hua. Dobara koshish karein.');
+  }
 }
 
 renderHistory();
@@ -289,15 +388,20 @@ function exportHistoryCSV(){
     alert('No readings saved yet — nothing to export.');
     return;
   }
-
-  const rows=[['Tank','Dip (mm)','Volume','Day','Date & Time','Note']];
+  const site=getSiteHeaderText();
+  const headerRows=[];
+  headerRows.push(['Site Name',site.name]);
+  if(site.address) headerRows.push(['Address',site.address]);
+  headerRows.push(['Report Date',formatDateDMY(new Date())]);
+  headerRows.push([]);
+  const rows=headerRows.concat([['Tank','Dip (mm)','Volume','Day','Date & Time','Note']]);
   list.forEach(e=>{
     rows.push([e.tank,e.dip,e.volume,e.day||'',e.time,e.note||'']);
   });
 
   const csvContent=rows.map(r=>r.map(csvEscape).join(',')).join('\r\n');
   const blob=new Blob(['\ufeff'+csvContent],{type:'text/csv;charset=utf-8;'});
-  const stamp=new Date().toISOString().slice(0,10);
+  const stamp=formatDateDMY(new Date()).replace(/-/g,'');
   shareOrDownloadBlob(blob,'fuel-dip-history-'+stamp+'.csv','text/csv');
 }
 
@@ -315,27 +419,38 @@ function exportHistoryPDF(){
 
   const {jsPDF}=window.jspdf;
   const doc=new jsPDF();
+  const site=getSiteHeaderText();
 
+  let y=18;
   doc.setFontSize(16);
   doc.setTextColor(37,99,235);
-  doc.text('Al Mukhtar Petroleum',14,18);
+  doc.text(site.name || 'Fuel Dip Calculator',14,y);
+  y+=7;
+  if(site.address){
+    doc.setFontSize(10);
+    doc.setTextColor(80,80,80);
+    doc.text(site.address,14,y);
+    y+=6;
+  }
   doc.setFontSize(11);
   doc.setTextColor(100,100,100);
-  doc.text('Fuel Dip Reading Report',14,25);
+  doc.text('Fuel Dip Reading Report',14,y);
+  y+=6;
   doc.setFontSize(9);
-  doc.text('Generated: '+new Date().toLocaleString(),14,31);
+  doc.text('Generated: '+formatDateTimeDMY(new Date()),14,y);
+  y+=8;
 
   const rows=list.map(e=>[e.tank,e.dip+' mm',e.volume,e.day||'',e.time,e.note||'']);
 
   doc.autoTable({
-    startY:36,
+    startY:y,
     head:[['Tank','Dip','Volume','Day','Date & Time','Note']],
     body:rows,
     headStyles:{fillColor:[37,99,235]},
     styles:{fontSize:9}
   });
 
-  const stamp=new Date().toISOString().slice(0,10);
+  const stamp=formatDateDMY(new Date()).replace(/-/g,'');
   const blob=doc.output('blob');
   shareOrDownloadBlob(blob,'fuel-dip-history-'+stamp+'.pdf','application/pdf');
 }
@@ -351,16 +466,21 @@ function exportHistoryExcel(){
     alert('Excel export needs an internet connection to load the first time. Please check your connection and try again.');
     return;
   }
-
-  const rows=[['Tank','Dip (mm)','Volume','Day','Date & Time','Note']];
+  const site=getSiteHeaderText();
+  const rows=[];
+  rows.push(['Site Name',site.name]);
+  if(site.address) rows.push(['Address',site.address]);
+  rows.push(['Report Date',formatDateDMY(new Date())]);
+  rows.push([]);
+  rows.push(['Tank','Dip (mm)','Volume','Day','Date & Time','Note']);
   list.forEach(e=>rows.push([e.tank,e.dip,e.volume,e.day||'',e.time,e.note||'']));
 
   const ws=XLSX.utils.aoa_to_sheet(rows);
-  ws['!cols']=[{wch:10},{wch:10},{wch:14},{wch:8},{wch:20},{wch:28}];
+  ws['!cols']=[{wch:14},{wch:12},{wch:14},{wch:8},{wch:22},{wch:28}];
   const wb=XLSX.utils.book_new();
   XLSX.utils.book_append_sheet(wb,ws,'Dip History');
 
-  const stamp=new Date().toISOString().slice(0,10);
+  const stamp=formatDateDMY(new Date()).replace(/-/g,'');
   const wbout=XLSX.write(wb,{bookType:'xlsx',type:'array'});
   const blob=new Blob([wbout],{type:'application/octet-stream'});
   shareOrDownloadBlob(blob,'fuel-dip-history-'+stamp+'.xlsx','application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
@@ -373,9 +493,11 @@ function shareHistoryWhatsApp(){
     alert('No readings saved yet — nothing to share.');
     return;
   }
-
+  const site=getSiteHeaderText();
   const recent=list.slice(0,20);
-  let msg='*Al Mukhtar Petroleum — Fuel Dip Readings*\n\n';
+  let msg='*'+site.name+' — Fuel Dip Readings*\n';
+  if(site.address) msg+=site.address+'\n';
+  msg+='Report: '+formatDateDMY(new Date())+'\n\n';
   recent.forEach(e=>{
     const dayPart=e.day?e.day+', ':'';
     const notePart=e.note?' — 📝 '+e.note:'';
@@ -672,7 +794,7 @@ function formatBackupDate(ts){
   try{
     const d=new Date(Number(ts));
     if(isNaN(d.getTime())) return null;
-    return d.toLocaleString(undefined,{ day:'2-digit', month:'short', year:'numeric', hour:'2-digit', minute:'2-digit' });
+    return formatDateDMY(d)+' '+formatTimeHM(d);
   }catch(e){ return null; }
 }
 
@@ -769,9 +891,6 @@ function restoreBackupFile(input){
 }
 
 /* ---------- Site Name & Address ---------- */
-const SITE_NAME_KEY='fuelDipSiteName';
-const SITE_ADDRESS_KEY='fuelDipSiteAddress';
-
 function applySiteDetails(){
   let name='', address='';
   try{
@@ -789,6 +908,22 @@ function applySiteDetails(){
       addrEl.style.display='block';
     }else{
       addrEl.style.display='none';
+    }
+  }
+
+  // Reports panel top header
+  const rName=document.getElementById('reportsSiteName');
+  const rAddr=document.getElementById('reportsSiteAddress');
+  if(rName){
+    rName.textContent = name || (nameEl ? nameEl.textContent.trim() : '') || 'Fuel Dip Calculator';
+  }
+  if(rAddr){
+    if(address){
+      rAddr.textContent=address;
+      rAddr.style.display='block';
+    }else{
+      rAddr.textContent='';
+      rAddr.style.display='none';
     }
   }
 }
@@ -999,8 +1134,8 @@ function copyResult(dipId, valueId, noteId, btnId, tankLabel){
   const volume = el.textContent.trim();
   const note = noteEl ? noteEl.value.trim() : '';
   const now = new Date();
-  const dayStr = now.toLocaleDateString(undefined,{weekday:'short'});
-  const dateTimeStr = now.toLocaleString(undefined,{day:'2-digit',month:'short',year:'numeric',hour:'2-digit',minute:'2-digit'});
+  const dayStr = formatDayShort(now);
+  const dateTimeStr = formatDateDMY(now)+' '+formatTimeHM(now);
 
   let text = 'Tank: '+(tankLabel||'')+'\n'+
     'Dip: '+(dip!==''?dip+' mm':'—')+'\n'+
@@ -1049,6 +1184,7 @@ function showPanel(navId){
   document.querySelectorAll('.bottom-nav .nav-item[data-nav]').forEach(function(item){
     item.classList.toggle('is-active', item.dataset.nav===navId);
   });
+  if(navId==='navReports') applySiteDetails();
 }
 
 /* ================= Fuel Tanker Unloading Status ================= */
@@ -1098,8 +1234,16 @@ function calcUnload(){
 function gatherUnloadData(){
   const tankSel=document.getElementById('ul_tank').value;
   const tank=UNLOAD_TANKS[tankSel];
+  const rawDate=document.getElementById('ul_date').value;
+  let dateDisplay=rawDate || formatDateDMY(new Date());
+  if(rawDate && /^\d{4}-\d{2}-\d{2}$/.test(rawDate)){
+    const parts=rawDate.split('-');
+    const d=new Date(Number(parts[0]),Number(parts[1])-1,Number(parts[2]));
+    if(!isNaN(d.getTime())) dateDisplay=formatDateDMY(d);
+  }
   return {
-    date: document.getElementById('ul_date').value || new Date().toISOString().slice(0,10),
+    date: dateDisplay,
+    dateRaw: rawDate || new Date().toISOString().slice(0,10),
     vendor: document.getElementById('ul_vendor').value.trim(),
     vehicle: document.getElementById('ul_vehicle').value.trim(),
     driver: document.getElementById('ul_driver').value.trim(),
@@ -1115,7 +1259,7 @@ function gatherUnloadData(){
     totalStock: document.getElementById('ul_totalStock').innerText,
     invStock: document.getElementById('ul_invStock').value,
     stEx: document.getElementById('ul_stEx').innerText,
-    savedAt: new Date().toLocaleString(undefined,{day:'2-digit',month:'short',year:'numeric',hour:'2-digit',minute:'2-digit'})
+    savedAt: formatDateDMY(new Date())+' '+formatTimeHM(new Date())
   };
 }
 
@@ -1138,7 +1282,23 @@ function updateUnloadReceipt(){
   document.getElementById('rc_invStock').innerText = d.invStock || '-';
   document.getElementById('rc_stEx').innerText = d.stEx;
   const footer=document.getElementById('rc_footer');
-  if(footer) footer.innerText='Generated: '+new Date().toLocaleString();
+  if(footer) footer.innerText='Generated: '+formatDateTimeDMY(new Date());
+  const site=getSiteHeaderText();
+  const headEl=document.querySelector('#unloadReceipt .unload-receipt-head');
+  if(headEl){
+    headEl.innerText = (site.name ? site.name+' — ' : '') + 'Vehicle Unloading Tank Status';
+  }
+  let addrEl=document.getElementById('rc_site_address');
+  if(!addrEl){
+    addrEl=document.createElement('div');
+    addrEl.id='rc_site_address';
+    addrEl.className='reading-detail-addr';
+    const head=document.querySelector('#unloadReceipt .unload-receipt-head');
+    if(head && head.nextSibling) head.parentNode.insertBefore(addrEl, head.nextSibling);
+    else if(head) head.parentNode.appendChild(addrEl);
+  }
+  if(site.address){ addrEl.textContent=site.address; addrEl.style.display='block'; }
+  else { addrEl.textContent=''; addrEl.style.display='none'; }
 }
 
 /* ---------- Unload history (save / render / delete / clear) ---------- */
@@ -1193,14 +1353,87 @@ function renderUnloadHistory(){
   }
 
   container.innerHTML=list.map((e,i)=>
-    '<div class="history-row">'+
+    '<div class="history-row history-row-clickable" onclick="viewUnloadAsImage('+i+')" title="Tap to view as image">'+
       '<span class="history-tank">'+escapeHtml(e.vehicle||e.vendor||'—')+'</span>'+
       '<span class="history-dip">'+escapeHtml(e.tankLabel||'')+'</span>'+
       '<span class="history-vol">'+escapeHtml(e.totalLiters||'0.00')+' L</span>'+
       '<span class="history-time">'+escapeHtml(e.date||'')+'</span>'+
-      '<button type="button" class="history-delete" onclick="deleteUnloadEntry('+i+')" aria-label="Delete this record">✕</button>'+
+      '<button type="button" class="history-delete" onclick="event.stopPropagation();deleteUnloadEntry('+i+')" aria-label="Delete this record">✕</button>'+
     '</div>'
   ).join('');
+}
+
+/* ---------- View unloading history entry as image ---------- */
+async function viewUnloadAsImage(index){
+  const list=loadUnloadHistory();
+  if(index<0||index>=list.length) return;
+  const e=list[index];
+  const site=getSiteHeaderText();
+
+  // Temporarily fill receipt with saved entry
+  document.getElementById('rc_date').innerText = e.date || '-';
+  document.getElementById('rc_vendor').innerText = e.vendor || '-';
+  document.getElementById('rc_vehicle').innerText = e.vehicle || '-';
+  document.getElementById('rc_driver').innerText = e.driver || '-';
+  document.getElementById('rc_contact').innerText = e.contact || '-';
+  document.getElementById('rc_tank').innerText = e.tankLabel || '-';
+  document.getElementById('rc_curDip').innerText = e.curDip? e.curDip+' mm':'-';
+  document.getElementById('rc_curLtrs').innerText = e.curLtrs || '-';
+  document.getElementById('rc_prvDip').innerText = e.prvDip? e.prvDip+' mm':'-';
+  document.getElementById('rc_prvLtrs').innerText = e.prvLtrs || '-';
+  document.getElementById('rc_balance').innerText = e.balance || '-';
+  document.getElementById('rc_sale').innerText = e.sale || '-';
+  document.getElementById('rc_totalLiters').innerText = e.totalLiters || '-';
+  document.getElementById('rc_totalStock').innerText = e.totalStock || '-';
+  document.getElementById('rc_invStock').innerText = e.invStock || '-';
+  document.getElementById('rc_stEx').innerText = e.stEx || '-';
+  const footer=document.getElementById('rc_footer');
+  if(footer) footer.innerText='Saved: '+(e.savedAt||'')+' | Viewed: '+formatDateTimeDMY(new Date());
+  const headEl=document.querySelector('#unloadReceipt .unload-receipt-head');
+  if(headEl) headEl.innerText = (site.name ? site.name+' — ' : '') + 'Vehicle Unloading Tank Status';
+  let addrEl=document.getElementById('rc_site_address');
+  if(!addrEl){
+    addrEl=document.createElement('div');
+    addrEl.id='rc_site_address';
+    addrEl.className='reading-detail-addr';
+    if(headEl && headEl.nextSibling) headEl.parentNode.insertBefore(addrEl, headEl.nextSibling);
+    else if(headEl) headEl.parentNode.appendChild(addrEl);
+  }
+  if(site.address){ addrEl.textContent=site.address; addrEl.style.display='block'; }
+  else { addrEl.textContent=''; addrEl.style.display='none'; }
+
+  if(!window.html2canvas){
+    alert('Image view needs an internet connection to load the first time. Please check your connection and try again.');
+    return;
+  }
+  const el=document.getElementById('unloadReceipt');
+  try{
+    const canvas=await html2canvas(el,{scale:2,backgroundColor:'#ffffff'});
+    canvas.toBlob(function(blob){
+      if(!blob) return;
+      const url=URL.createObjectURL(blob);
+      const w=window.open('','_blank');
+      if(w){
+        w.document.write('<!doctype html><html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Unloading Detail</title>'+
+          '<style>body{margin:0;padding:16px;background:#111;display:flex;flex-direction:column;align-items:center;min-height:100vh;box-sizing:border-box;font-family:system-ui,sans-serif;}'+
+          'img{max-width:100%;height:auto;border-radius:8px;box-shadow:0 8px 32px rgba(0,0,0,.4);}'+
+          '.actions{margin-top:16px;display:flex;gap:10px;flex-wrap:wrap;justify-content:center;}'+
+          'a,button{padding:10px 18px;border-radius:8px;border:none;font-size:15px;cursor:pointer;text-decoration:none;color:#fff;}'+
+          '.dl{background:#2563eb;} .cl{background:#64748b;}</style></head><body>'+
+          '<img src="'+url+'" alt="Unloading detail">'+
+          '<div class="actions"><a class="dl" download="unloading-'+formatDateDMY(new Date())+'.png" href="'+url+'">⬇️ Download Image</a>'+
+          '<button class="cl" onclick="window.close()">Close</button></div></body></html>');
+        w.document.close();
+      }else{
+        shareOrDownloadBlob(blob,'unloading-'+formatDateDMY(new Date())+'.png','image/png');
+      }
+      // restore live receipt
+      updateUnloadReceipt();
+    },'image/png');
+  }catch(err){
+    alert('Image banate waqt masla hua. Dobara koshish karein.');
+    updateUnloadReceipt();
+  }
 }
 
 /* ---------- Print unloading status (opens print-ready window) ---------- */
@@ -1210,10 +1443,12 @@ function printUnload(){
   const w=window.open('','_blank');
   if(!w){ alert('Popup blocked. Please allow popups to print.'); return; }
 
+  const site=getSiteHeaderText();
   const html='<!doctype html><html><head><meta charset="utf-8"><title>Unloading Status</title>'+
     '<style>'+
     'body{font-family:Arial,Helvetica,sans-serif;padding:24px;color:#1a1a1a;}'+
-    'h2{background:#37474f;color:#fff;padding:12px 14px;margin:0 0 16px;border-radius:6px;font-size:18px;}'+
+    'h2{background:#37474f;color:#fff;padding:12px 14px;margin:0 0 6px;border-radius:6px;font-size:18px;}'+
+    '.site-addr{font-size:13px;color:#555;margin:0 0 14px;}'+
     'table{width:100%;border-collapse:collapse;margin-bottom:16px;}'+
     'td,th{border:1px solid #999;padding:8px 10px;font-size:14px;}'+
     'td:first-child{font-weight:700;background:#f3f3f3;width:42%;}'+
@@ -1221,7 +1456,8 @@ function printUnload(){
     '.total-row td{font-weight:800;background:#fff8e1;}'+
     'p.foot{font-size:11px;color:#777;margin-top:20px;}'+
     '</style></head><body>'+
-    '<h2>Vehicle Unloading Tank Status</h2>'+
+    '<h2>'+escapeHtml(site.name ? site.name+' — ' : '')+'Vehicle Unloading Tank Status</h2>'+
+    (site.address?'<p class="site-addr">'+escapeHtml(site.address)+'</p>':'')+
     '<table>'+
       '<tr><td>Date</td><td>'+escapeHtml(d.date)+'</td></tr>'+
       '<tr><td>Vendor Name</td><td>'+escapeHtml(d.vendor||'-')+'</td></tr>'+
@@ -1243,7 +1479,7 @@ function printUnload(){
       '<tr><td>INV STOCK</td><td>'+(d.invStock||'-')+'</td></tr>'+
       '<tr><td>ST / EX LITER</td><td>'+d.stEx+'</td></tr>'+
     '</table>'+
-    '<p class="foot">Generated: '+new Date().toLocaleString()+'</p>'+
+    '<p class="foot">Generated: '+formatDateTimeDMY(new Date())+'</p>'+
     '</body></html>';
 
   w.document.write(html);
@@ -1263,7 +1499,7 @@ async function shareUnloadImage(){
     const canvas=await html2canvas(el,{scale:2,backgroundColor:'#ffffff'});
     canvas.toBlob(function(blob){
       if(!blob) return;
-      const stamp=new Date().toISOString().slice(0,10);
+      const stamp=formatDateDMY(new Date()).replace(/-/g,'');
       shareOrDownloadBlob(blob,'unloading-status-'+stamp+'.png','image/png');
     },'image/png');
   }catch(e){
