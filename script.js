@@ -4,33 +4,68 @@ function formatLiters(x){
   return x.toLocaleString('en-US',{minimumFractionDigits:1,maximumFractionDigits:1})+' L';
 }
 
-/* ---------- Consistent Date-Month-Year format (DD-MMM-YYYY) ---------- */
+/* ---------- Consistent Date & Time format (user-configurable via Settings) ---------- */
 const MONTHS_SHORT=['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+const DATE_FORMAT_KEY='fuelDipDateFormat';
+const TIME_FORMAT_KEY='fuelDipTimeFormat';
+
+function getDateFormat(){
+  try{ return localStorage.getItem(DATE_FORMAT_KEY)||'dmy'; }catch(e){ return 'dmy'; }
+}
+function getTimeFormat(){
+  try{ return localStorage.getItem(TIME_FORMAT_KEY)||'24'; }catch(e){ return '24'; }
+}
+
 function formatDateDMY(d){
   if(!(d instanceof Date) || isNaN(d.getTime())) d=new Date();
   const day=String(d.getDate()).padStart(2,'0');
   const month=MONTHS_SHORT[d.getMonth()];
   const year=d.getFullYear();
+  const fmt=getDateFormat();
+  if(fmt==='mdy') return month+'-'+day+'-'+year;
+  if(fmt==='ymd') return year+'-'+month+'-'+day;
   return day+'-'+month+'-'+year;
 }
 function formatDateTimeDMY(d){
   if(!(d instanceof Date) || isNaN(d.getTime())) d=new Date();
   const datePart=formatDateDMY(d);
-  const h=String(d.getHours()).padStart(2,'0');
+  return datePart+'  '+formatTimeHM(d,true);
+}
+function formatTimeHM(d,withSeconds){
+  if(!(d instanceof Date) || isNaN(d.getTime())) d=new Date();
+  const fmt=getTimeFormat();
+  let h=d.getHours();
   const m=String(d.getMinutes()).padStart(2,'0');
   const s=String(d.getSeconds()).padStart(2,'0');
-  return datePart+'  '+h+':'+m+':'+s;
-}
-function formatTimeHM(d){
-  if(!(d instanceof Date) || isNaN(d.getTime())) d=new Date();
-  const h=String(d.getHours()).padStart(2,'0');
-  const m=String(d.getMinutes()).padStart(2,'0');
-  return h+':'+m;
+  if(fmt==='12'){
+    const ampm=h>=12?'PM':'AM';
+    h=h%12; if(h===0) h=12;
+    return String(h).padStart(2,'0')+':'+m+(withSeconds?':'+s:'')+' '+ampm;
+  }
+  return String(h).padStart(2,'0')+':'+m+(withSeconds?':'+s:'');
 }
 function formatDayShort(d){
   if(!(d instanceof Date) || isNaN(d.getTime())) d=new Date();
   return d.toLocaleDateString(undefined,{weekday:'short'});
 }
+
+function onDateFormatChange(value){
+  const valid=['dmy','mdy','ymd'];
+  const v=valid.includes(value)?value:'dmy';
+  try{ localStorage.setItem(DATE_FORMAT_KEY,v); }catch(e){}
+  tickClock();
+}
+function onTimeFormatChange(value){
+  const v=(value==='12')?'12':'24';
+  try{ localStorage.setItem(TIME_FORMAT_KEY,v); }catch(e){}
+  tickClock();
+}
+(function initDateTimeFormat(){
+  const dSel=document.getElementById('dateFormatSelect');
+  if(dSel) dSel.value=getDateFormat();
+  const tSel=document.getElementById('timeFormatSelect');
+  if(tSel) tSel.value=getTimeFormat();
+})();
 const SITE_NAME_KEY='fuelDipSiteName';
 const SITE_ADDRESS_KEY='fuelDipSiteAddress';
 function getSiteName(){
@@ -191,7 +226,7 @@ function tickClock(){
   const now=new Date();
   const dayStr=formatDayShort(now);
   const dateStr=formatDateDMY(now);
-  const timeStr=formatDateTimeDMY(now).split('  ')[1] || formatTimeHM(now);
+  const timeStr=formatTimeHM(now,true);
   el.innerText=dayStr+', '+dateStr+'  •  '+timeStr;
 }
 setInterval(tickClock,1000);
@@ -266,6 +301,70 @@ function deleteReading(index){
   renderHistory();
 }
 
+/* ---------- Edit a saved reading entry ---------- */
+let editingReadingIndex=-1;
+
+function openEditReading(index){
+  const list=loadHistory();
+  const e=list[index];
+  if(!e) return;
+  editingReadingIndex=index;
+  document.getElementById('editReadingTank').textContent=e.tank;
+  document.getElementById('editReadingDip').value=e.dip;
+  document.getElementById('editReadingNote').value=e.note||'';
+  const msg=document.getElementById('editReadingMsg');
+  if(msg) msg.textContent='';
+  document.getElementById('editReadingModal').style.display='flex';
+}
+function closeEditReading(){
+  document.getElementById('editReadingModal').style.display='none';
+  editingReadingIndex=-1;
+}
+function closeEditReadingOnBg(evt){
+  if(evt.target && evt.target.id==='editReadingModal') closeEditReading();
+}
+function saveEditReading(){
+  if(editingReadingIndex<0) return;
+  const list=loadHistory();
+  const e=list[editingReadingIndex];
+  if(!e) return;
+
+  const newDipRaw=document.getElementById('editReadingDip').value;
+  const newDip=parseFloat(newDipRaw);
+  const newNote=document.getElementById('editReadingNote').value.trim();
+  const msg=document.getElementById('editReadingMsg');
+
+  if(newDipRaw===''||isNaN(newDip)){
+    if(msg) msg.textContent='Sahi dip value darj karein.';
+    return;
+  }
+
+  const tankData = (e.tank||'').indexOf('50')!==-1 ? tank50 : tank25;
+  const newVolNum = interp(tankData,newDip);
+  if(newVolNum==null){
+    if(msg) msg.textContent='Ye dip value tank ki range se bahar hai.';
+    return;
+  }
+  const newVolume = formatLiters(newVolNum);
+
+  const changes=[];
+  if(newDip!==e.dip) changes.push('Dip '+e.dip+'mm → '+newDip+'mm');
+  if(newNote!==(e.note||'')) changes.push('Note updated');
+
+  e.dip=newDip;
+  e.volume=newVolume;
+  e.note=newNote;
+
+  if(changes.length){
+    e.editedAt=formatDateDMY(new Date())+' '+formatTimeHM(new Date());
+    e.editSummary=changes.join('; ');
+  }
+
+  persistHistory(list);
+  renderHistory();
+  closeEditReading();
+}
+
 function escapeHtml(str){
   return String(str==null?'':str)
     .replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;')
@@ -288,8 +387,10 @@ function renderHistory(){
       '<span class="history-dip">'+e.dip+' mm</span>'+
       '<span class="history-vol">'+escapeHtml(e.volume)+'</span>'+
       '<span class="history-time">'+(e.day?e.day+', ':'')+escapeHtml(e.time)+'</span>'+
+      '<button type="button" class="history-edit" onclick="event.stopPropagation();openEditReading('+i+')" aria-label="Edit this reading">✏️</button>'+
       '<button type="button" class="history-delete" onclick="event.stopPropagation();deleteReading('+i+')" aria-label="Delete this reading">✕</button>'+
       (e.note?'<span class="history-note">📝 '+escapeHtml(e.note)+'</span>':'')+
+      (e.editedAt?'<span class="history-edited">✏️ Edited: '+escapeHtml(e.editSummary||'')+' — '+escapeHtml(e.editedAt)+'</span>':'')+
     '</div>'
   ).join('');
 }
@@ -316,7 +417,7 @@ async function viewReadingAsImage(index){
       '<tr><td>Tank</td><td>'+escapeHtml(e.tank)+'</td></tr>'+
       '<tr><td>Dip</td><td>'+e.dip+' mm</td></tr>'+
       '<tr><td>Volume</td><td>'+escapeHtml(e.volume)+'</td></tr>'+
-      '<tr><td>Date &amp; Time</td><td>'+(e.day?e.day+', ':'')+escapeHtml(e.time)+'</td></tr>'+
+      '<tr><td>Date & Time</td><td>'+(e.day?e.day+', ':'')+escapeHtml(e.time)+'</td></tr>'+
       (e.note?'<tr><td>Note</td><td>'+escapeHtml(e.note)+'</td></tr>':'')+
     '</table>'+
     '<div class="unload-receipt-footer">Generated: '+formatDateTimeDMY(new Date())+'</div>';
@@ -588,7 +689,35 @@ const I18N={
     'tank.save':'💾 Save reading', 'tank.copy':'📋 Copy Result', 'tank.clear':'✕ Clear',
     'tank.reverseLookup':'🔄 Reverse Lookup — Litres → Dip', 'tank.enterLitres':'⛽ Enter litres', 'tank.estimatedDip':'📏 Estimated Dip',
     'settings.title':'⚙️ App Settings', 'settings.colorScheme':'🎨 Color Scheme', 'settings.language':'🌐 Language',
-    'settings.pinLock':'🔒 PIN Lock', 'settings.about':'ℹ️ About Application', 'settings.viewMode':'📐 View Settings'
+    'settings.pinLock':'🔒 PIN Lock', 'settings.pinLockSub':'Require a PIN to open this app',
+    'settings.about':'ℹ️ About Application', 'settings.viewMode':'📐 View Settings',
+    'settings.mobileView':'Mobile View', 'settings.desktopView':'Desktop View',
+    'settings.dateFormat':'🗓️ Date Format', 'settings.dateFormatSub':'Choose the order dates are shown in',
+    'settings.timeFormat':'🕐 Time Format', 'settings.timeFormatSub':'12-Hour or 24-Hour clock',
+    'settings.siteName':'Site Name & Address', 'settings.siteNameSub':'Name & address shown on the header',
+    'settings.siteNameField':'Site Name', 'settings.addressField':'Address',
+    'settings.newPin':'New PIN', 'settings.confirmPin':'Confirm PIN', 'settings.savePin':'Save PIN',
+    'settings.backupRestore':'Backup & Restore', 'settings.lastBackup':'Last backup: Never',
+    'settings.downloadBackup':'⬇ Download backup', 'settings.restoreBackup':'⬆ Restore from backup',
+    'common.save':'Save',
+    'home.tanksOverview':'🛢 Storage Tanks — Overview', 'home.tagline':'Fuel Dip Calculator',
+    'home.footNote':'Results are based on the uploaded calibration chart. Always verify before final fuel dispatch.',
+    'reports.title':'📊 Reading History', 'reports.noReadings':'No readings saved yet. Tap any saved entry to view as image.',
+    'chart.title':'📋 Dip Calibration Chart', 'chart.note':'Full reference table',
+    'chart.searchMm':'📏 Search Dip (mm)', 'chart.searchL':'⛽ Search Litres (L)',
+    'unload.title':'🚛 Fuel Tanker Unloading Status', 'unload.note':'Vehicle unloading tank check',
+    'unload.date':'📅 Date', 'unload.vendor':'Vendor Name', 'unload.vehicle':'Vehicle No',
+    'unload.driver':'Driver Name', 'unload.contact':'Contact No', 'unload.tank':'Unloading Tank',
+    'unload.dipReadings':'Dip Readings', 'unload.curDipLtrs':'Current Dip & Ltrs', 'unload.prvDipLtrs':'Prv Dip & Ltrs',
+    'unload.balanceLiters':'Balance Liters', 'unload.saleLiters':'Sale Liters',
+    'unload.totalLiters':'TOTAL LITERS', 'unload.totalStock':'TOTAL STOCK', 'unload.invStock':'Inv Stock', 'unload.stEx':'ST / EX Liter',
+    'unload.save':'💾 Save', 'unload.print':'🖨️ Print', 'unload.shareImage':'📤 Share Image',
+    'unload.historyTitle':'📜 Unloading History', 'unload.clearAll':'Clear',
+    'unload.noRecords':'No unloading records saved yet. Tap any saved entry to view as image.',
+    'edit.readingTitle':'✏️ Edit Reading', 'edit.unloadTitle':'✏️ Edit Unloading Record',
+    'edit.dip':'📏 Dip (mm)', 'edit.saveChanges':'Save Changes',
+    'lock.title':'Enter PIN', 'lock.sub':'This app is protected. Enter PIN to continue.', 'lock.unlock':'Unlock',
+    'about.title':'ℹ️ About Application'
   },
   ru:{
     'nav.home':'Home', 'nav.tanks':'Tanks', 'nav.reports':'Reports', 'nav.chart':'Dip Chart', 'nav.settings':'Settings',
@@ -596,7 +725,35 @@ const I18N={
     'tank.save':'💾 Reading Save Karein', 'tank.copy':'📋 Result Copy Karein', 'tank.clear':'✕ Clear Karein',
     'tank.reverseLookup':'🔄 Reverse Lookup — Litres → Dip', 'tank.enterLitres':'⛽ Litres Darj Karein', 'tank.estimatedDip':'📏 Takhmeeni Dip',
     'settings.title':'⚙️ App Settings', 'settings.colorScheme':'🎨 Color Theme', 'settings.language':'🌐 Zabaan',
-    'settings.pinLock':'🔒 PIN Lock', 'settings.about':'ℹ️ App Ke Baare Mein', 'settings.viewMode':'📐 View Settings'
+    'settings.pinLock':'🔒 PIN Lock', 'settings.pinLockSub':'App kholne ke liye PIN zaroori karein',
+    'settings.about':'ℹ️ App Ke Baare Mein', 'settings.viewMode':'📐 View Settings',
+    'settings.mobileView':'Mobile View', 'settings.desktopView':'Desktop View',
+    'settings.dateFormat':'🗓️ Date Format', 'settings.dateFormatSub':'Kis tarteeb mein date dikhani hai',
+    'settings.timeFormat':'🕐 Time Format', 'settings.timeFormatSub':'12-Hour ya 24-Hour clock',
+    'settings.siteName':'Site Ka Naam & Address', 'settings.siteNameSub':'Header par dikhne wala site ka naam aur address',
+    'settings.siteNameField':'Site Ka Naam', 'settings.addressField':'Address',
+    'settings.newPin':'Naya PIN', 'settings.confirmPin':'PIN Dobara Darj Karein', 'settings.savePin':'PIN Save Karein',
+    'settings.backupRestore':'Backup & Restore', 'settings.lastBackup':'Aakhri backup: Kabhi Nahi',
+    'settings.downloadBackup':'⬇ Backup Download Karein', 'settings.restoreBackup':'⬆ Backup Se Restore Karein',
+    'common.save':'Save Karein',
+    'home.tanksOverview':'🛢 Storage Tanks — Ijmali Jaeza', 'home.tagline':'Fuel Dip Calculator',
+    'home.footNote':'Results uploaded calibration chart ke mutabiq hain. Fuel dispatch se pehle hamesha tasdeeq karein.',
+    'reports.title':'📊 Reading History', 'reports.noReadings':'Abhi tak koi reading save nahi hui. Image dekhne ke liye entry par tap karein.',
+    'chart.title':'📋 Dip Calibration Chart', 'chart.note':'Poori reference table',
+    'chart.searchMm':'📏 Dip Talash Karein (mm)', 'chart.searchL':'⛽ Litres Talash Karein (L)',
+    'unload.title':'🚛 Fuel Tanker Unloading Status', 'unload.note':'Vehicle unloading tank check',
+    'unload.date':'📅 Tareekh', 'unload.vendor':'Vendor Ka Naam', 'unload.vehicle':'Vehicle No',
+    'unload.driver':'Driver Ka Naam', 'unload.contact':'Contact No', 'unload.tank':'Unloading Tank',
+    'unload.dipReadings':'Dip Readings', 'unload.curDipLtrs':'Current Dip & Ltrs', 'unload.prvDipLtrs':'Prv Dip & Ltrs',
+    'unload.balanceLiters':'Balance Liters', 'unload.saleLiters':'Sale Liters',
+    'unload.totalLiters':'TOTAL LITERS', 'unload.totalStock':'TOTAL STOCK', 'unload.invStock':'Inv Stock', 'unload.stEx':'ST / EX Liter',
+    'unload.save':'💾 Save Karein', 'unload.print':'🖨️ Print Karein', 'unload.shareImage':'📤 Image Share Karein',
+    'unload.historyTitle':'📜 Unloading History', 'unload.clearAll':'Clear Karein',
+    'unload.noRecords':'Abhi tak koi unloading record save nahi hua. Image dekhne ke liye entry par tap karein.',
+    'edit.readingTitle':'✏️ Reading Edit Karein', 'edit.unloadTitle':'✏️ Unloading Record Edit Karein',
+    'edit.dip':'📏 Dip (mm)', 'edit.saveChanges':'Tabdeeliyan Save Karein',
+    'lock.title':'PIN Darj Karein', 'lock.sub':'Ye app protected hai. Jari rakhne ke liye PIN darj karein.', 'lock.unlock':'Unlock Karein',
+    'about.title':'ℹ️ App Ke Baare Mein'
   }
 };
 
@@ -1231,6 +1388,21 @@ function calcUnload(){
   updateUnloadReceipt();
 }
 
+function clearUnloadForm(){
+  if(!confirm('Sabhi fields clear kar dein?')) return;
+  document.getElementById('ul_date').value=new Date().toISOString().slice(0,10);
+  document.getElementById('ul_vendor').value='';
+  document.getElementById('ul_vehicle').value='';
+  document.getElementById('ul_driver').value='';
+  document.getElementById('ul_contact').value='';
+  document.getElementById('ul_tank').value='t50';
+  document.getElementById('ul_curDip').value='';
+  document.getElementById('ul_prvDip').value='';
+  document.getElementById('ul_sale').value='';
+  document.getElementById('ul_invStock').value='';
+  calcUnload();
+}
+
 function gatherUnloadData(){
   const tankSel=document.getElementById('ul_tank').value;
   const tank=UNLOAD_TANKS[tankSel];
@@ -1342,6 +1514,104 @@ function deleteUnloadEntry(index){
   renderUnloadHistory();
 }
 
+/* ---------- Edit a saved unloading record ---------- */
+let editingUnloadIndex=-1;
+
+function openEditUnload(index){
+  const list=loadUnloadHistory();
+  const e=list[index];
+  if(!e) return;
+  editingUnloadIndex=index;
+  document.getElementById('eu_vendor').value=e.vendor||'';
+  document.getElementById('eu_vehicle').value=e.vehicle||'';
+  document.getElementById('eu_driver').value=e.driver||'';
+  document.getElementById('eu_contact').value=e.contact||'';
+  document.getElementById('eu_tank').value=(e.tankLabel||'').indexOf('50')!==-1?'t50':'t25';
+  document.getElementById('eu_curDip').value=e.curDip||'';
+  document.getElementById('eu_prvDip').value=e.prvDip||'';
+  document.getElementById('eu_sale').value=(e.sale||'0').toString().replace(/,/g,'');
+  document.getElementById('eu_invStock').value=(e.invStock||'').toString().replace(/,/g,'');
+  document.getElementById('eu_date').value=e.dateRaw||'';
+  const msg=document.getElementById('editUnloadMsg');
+  if(msg) msg.textContent='';
+  document.getElementById('editUnloadModal').style.display='flex';
+}
+function closeEditUnload(){
+  document.getElementById('editUnloadModal').style.display='none';
+  editingUnloadIndex=-1;
+}
+function closeEditUnloadOnBg(evt){
+  if(evt.target && evt.target.id==='editUnloadModal') closeEditUnload();
+}
+function saveEditUnload(){
+  if(editingUnloadIndex<0) return;
+  const list=loadUnloadHistory();
+  const old=list[editingUnloadIndex];
+  if(!old) return;
+
+  const tankSel=document.getElementById('eu_tank').value;
+  const tank=UNLOAD_TANKS[tankSel];
+  const curDip=parseFloat(document.getElementById('eu_curDip').value);
+  const prvDip=parseFloat(document.getElementById('eu_prvDip').value);
+  const sale=parseFloat(document.getElementById('eu_sale').value)||0;
+  const invInput=parseFloat(document.getElementById('eu_invStock').value);
+  const rawDate=document.getElementById('eu_date').value;
+
+  const curLtrs=isNaN(curDip)?null:interp(tank.data,curDip);
+  const prvLtrs=isNaN(prvDip)?null:interp(tank.data,prvDip);
+  const balance=(curLtrs!=null&&prvLtrs!=null)?curLtrs-prvLtrs:null;
+  const totalLiters=balance!=null?balance+sale:null;
+  const invStock=isNaN(invInput)?null:invInput;
+  const stEx=(totalLiters!=null&&invStock!=null)?totalLiters-invStock:null;
+
+  let dateDisplay=rawDate||old.date;
+  if(rawDate && /^\d{4}-\d{2}-\d{2}$/.test(rawDate)){
+    const parts=rawDate.split('-');
+    const dd=new Date(Number(parts[0]),Number(parts[1])-1,Number(parts[2]));
+    if(!isNaN(dd.getTime())) dateDisplay=formatDateDMY(dd);
+  }
+
+  const updated={
+    date:dateDisplay,
+    dateRaw:rawDate||old.dateRaw,
+    vendor:document.getElementById('eu_vendor').value.trim(),
+    vehicle:document.getElementById('eu_vehicle').value.trim(),
+    driver:document.getElementById('eu_driver').value.trim(),
+    contact:document.getElementById('eu_contact').value.trim(),
+    tankLabel:tank.label,
+    curDip:document.getElementById('eu_curDip').value,
+    curLtrs:curLtrs!=null?fmtNum(curLtrs)+' L':'— L',
+    prvDip:document.getElementById('eu_prvDip').value,
+    prvLtrs:prvLtrs!=null?fmtNum(prvLtrs)+' L':'— L',
+    balance:fmtNum(balance),
+    sale:document.getElementById('eu_sale').value||'0',
+    totalLiters:fmtNum(totalLiters),
+    totalStock:fmtNum(totalLiters),
+    invStock:document.getElementById('eu_invStock').value,
+    stEx:stEx!=null?(stEx>=0?'+':'')+fmtNum(stEx):'0.00',
+    savedAt:old.savedAt
+  };
+
+  const changedFields=[];
+  const labels={vendor:'Vendor',vehicle:'Vehicle No',driver:'Driver',contact:'Contact',tankLabel:'Tank',curDip:'Current Dip',prvDip:'Prv Dip',sale:'Sale Liters',invStock:'Inv Stock',date:'Date'};
+  Object.keys(labels).forEach(function(k){
+    if(String(old[k]||'')!==String(updated[k]||'')) changedFields.push(labels[k]);
+  });
+
+  if(changedFields.length){
+    updated.editedAt=formatDateDMY(new Date())+' '+formatTimeHM(new Date());
+    updated.editSummary='Updated: '+changedFields.join(', ');
+  }else{
+    updated.editedAt=old.editedAt;
+    updated.editSummary=old.editSummary;
+  }
+
+  list[editingUnloadIndex]=updated;
+  persistUnloadHistory(list);
+  renderUnloadHistory();
+  closeEditUnload();
+}
+
 function renderUnloadHistory(){
   const container=document.getElementById('unloadHistoryList');
   if(!container) return;
@@ -1358,7 +1628,9 @@ function renderUnloadHistory(){
       '<span class="history-dip">'+escapeHtml(e.tankLabel||'')+'</span>'+
       '<span class="history-vol">'+escapeHtml(e.totalLiters||'0.00')+' L</span>'+
       '<span class="history-time">'+escapeHtml(e.date||'')+'</span>'+
+      '<button type="button" class="history-edit" onclick="event.stopPropagation();openEditUnload('+i+')" aria-label="Edit this record">✏️</button>'+
       '<button type="button" class="history-delete" onclick="event.stopPropagation();deleteUnloadEntry('+i+')" aria-label="Delete this record">✕</button>'+
+      (e.editedAt?'<span class="history-edited">✏️ Edited: '+escapeHtml(e.editSummary||'')+' — '+escapeHtml(e.editedAt)+'</span>':'')+
     '</div>'
   ).join('');
 }
@@ -1468,8 +1740,8 @@ function printUnload(){
     '</table>'+
     '<table>'+
       '<tr><th>Description</th><th>Dips</th><th>Ltrs</th></tr>'+
-      '<tr><td>Current Dip &amp; Ltrs</td><td>'+(d.curDip?d.curDip+' mm':'-')+'</td><td>'+d.curLtrs+'</td></tr>'+
-      '<tr><td>Prv Dip &amp; Ltrs</td><td>'+(d.prvDip?d.prvDip+' mm':'-')+'</td><td>'+d.prvLtrs+'</td></tr>'+
+      '<tr><td>Current Dip & Ltrs</td><td>'+(d.curDip?d.curDip+' mm':'-')+'</td><td>'+d.curLtrs+'</td></tr>'+
+      '<tr><td>Prv Dip & Ltrs</td><td>'+(d.prvDip?d.prvDip+' mm':'-')+'</td><td>'+d.prvLtrs+'</td></tr>'+
       '<tr><td colspan="2">Balance Liters</td><td>'+d.balance+'</td></tr>'+
       '<tr><td colspan="2">Sale Liters</td><td>'+d.sale+'</td></tr>'+
       '<tr class="total-row"><td colspan="2">TOTAL LITERS</td><td>'+d.totalLiters+'</td></tr>'+
