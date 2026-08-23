@@ -1232,6 +1232,7 @@ body.dark-theme .history-note{
   height: 4px;
   background: var(--shell-yellow);
   opacity: 1;
+  border-radius: var(--radius-lg) var(--radius-lg) 0 0;
 }
 
 .dev-role{
