@@ -80,6 +80,24 @@ function getSiteHeaderText(){
   return {name:name, address:addr};
 }
 
+/* ---------- Live saved-entry counts (Reading / Stock / Unload) ---------- */
+function renderEntryCounts(){
+  let readingCount=0, stockCount=0, unloadCount=0;
+  try{ readingCount=loadHistory().length; }catch(e){}
+  try{ stockCount=(typeof loadStockHistory==='function')?loadStockHistory().length:0; }catch(e){}
+  try{ unloadCount=(typeof loadUnloadHistory==='function')?loadUnloadHistory().length:0; }catch(e){}
+
+  ['countReading','countReadingAbout'].forEach(function(id){
+    const el=document.getElementById(id); if(el) el.textContent=readingCount;
+  });
+  ['countStock','countStockAbout'].forEach(function(id){
+    const el=document.getElementById(id); if(el) el.textContent=stockCount;
+  });
+  ['countUnload','countUnloadAbout'].forEach(function(id){
+    const el=document.getElementById(id); if(el) el.textContent=unloadCount;
+  });
+}
+
 /* ---------- Animated counter (smooth count-up for result values) ---------- */
 function animateCounter(el, toValue, formatFn, duration){
   formatFn = formatFn || formatLiters;
@@ -372,6 +390,7 @@ function escapeHtml(str){
 }
 
 function renderHistory(){
+  renderEntryCounts();
   const container=document.getElementById('historyList');
   if(!container) return;
   const list=loadHistory();
@@ -840,6 +859,7 @@ function attemptUnlock(){
 
 /* ---------- Settings modal ---------- */
 function openSettings(){
+  renderEntryCounts();
   const modal=document.getElementById('settingsModal');
   const toggle=document.getElementById('pinEnabledToggle');
   toggle.checked=getPinEnabled();
@@ -883,6 +903,7 @@ function closeSettingsOnBg(e){
 }
 
 function openAbout(){
+  renderEntryCounts();
   document.getElementById('aboutModal').style.display='flex';
 }
 
@@ -1344,6 +1365,789 @@ function showPanel(navId){
   if(navId==='navReports') applySiteDetails();
 }
 
+/* ================= Stock Management ================= */
+const STOCK_HISTORY_KEY='fuelStockHistory';
+const STOCK_HISTORY_LIMIT=500;
+
+function fmtStockNum(x){
+  if(x==null||isNaN(x)) return '0.00';
+  return x.toLocaleString('en-US',{minimumFractionDigits:2,maximumFractionDigits:2});
+}
+
+function calcStock(){
+  const opening=parseFloat(document.getElementById('sk_opening').value)||0;
+  const arrival=parseFloat(document.getElementById('sk_arrival').value)||0;
+  const sale=parseFloat(document.getElementById('sk_sale').value)||0;
+  const dipInput=parseFloat(document.getElementById('sk_dipStock').value);
+
+  const total=opening+arrival;
+  const balance=total-sale;
+  const dipStock=isNaN(dipInput)?null:dipInput;
+  const stEx=dipStock!=null?(dipStock-balance):null;
+
+  document.getElementById('sk_total').innerText=fmtStockNum(total);
+  document.getElementById('sk_balance').innerText=fmtStockNum(balance);
+  const stExEl=document.getElementById('sk_stEx');
+  stExEl.innerText=stEx!=null?(stEx>=0?'+':'')+fmtStockNum(stEx):'0.00';
+  stExEl.classList.toggle('is-excess', stEx!=null && stEx>0);
+  stExEl.classList.toggle('is-short', stEx!=null && stEx<0);
+}
+
+function gatherStockData(){
+  return {
+    date: document.getElementById('sk_date').value || new Date().toISOString().slice(0,10),
+    product: document.getElementById('sk_product').value.trim(),
+    desc: document.getElementById('sk_desc').value.trim(),
+    opening: document.getElementById('sk_opening').value || '0',
+    arrival: document.getElementById('sk_arrival').value || '0',
+    total: document.getElementById('sk_total').innerText,
+    sale: document.getElementById('sk_sale').value || '0',
+    balance: document.getElementById('sk_balance').innerText,
+    dipStock: document.getElementById('sk_dipStock').value || '',
+    stEx: document.getElementById('sk_stEx').innerText,
+    savedAt: formatDateDMY(new Date())+' '+formatTimeHM(new Date())
+  };
+}
+
+function clearStockForm(){
+  document.getElementById('sk_date').value=new Date().toISOString().slice(0,10);
+  document.getElementById('sk_desc').value='';
+  document.getElementById('sk_opening').value='';
+  document.getElementById('sk_arrival').value='';
+  document.getElementById('sk_sale').value='';
+  document.getElementById('sk_dipStock').value='';
+  document.getElementById('sk_dipMM').value='';
+  calcStock();
+  autoFillOpeningFromLastBalance();
+}
+
+function loadStockHistory(){
+  try{ return JSON.parse(localStorage.getItem(STOCK_HISTORY_KEY))||[]; }catch(e){ return []; }
+}
+function persistStockHistory(list){
+  try{ localStorage.setItem(STOCK_HISTORY_KEY,JSON.stringify(list)); }catch(e){}
+}
+
+function saveStockEntry(){
+  calcStock();
+  const d=gatherStockData();
+  if(!d.product){
+    alert('Product ka naam zaroor darj karein.');
+    return;
+  }
+  const list=loadStockHistory();
+  list.unshift(d);
+  if(list.length>STOCK_HISTORY_LIMIT) list.length=STOCK_HISTORY_LIMIT;
+  persistStockHistory(list);
+  renderStockHistory();
+  alert('Stock entry save ho gayi.');
+}
+
+function clearStockHistory(){
+  const list=loadStockHistory();
+  if(list.length===0) return;
+  if(!confirm('Clear all '+list.length+' stock entries?\n\nThis cannot be undone.')) return;
+  persistStockHistory([]);
+  renderStockHistory();
+}
+
+function deleteStockEntry(index){
+  const list=loadStockHistory();
+  if(index<0||index>=list.length) return;
+  const e=list[index];
+  if(!confirm('Delete this stock entry?\n\n'+(e.product||'')+' — '+e.date)) return;
+  list.splice(index,1);
+  persistStockHistory(list);
+  renderStockHistory();
+}
+
+function renderStockHistory(){
+  renderEntryCounts();
+  const container=document.getElementById('stockHistoryList');
+  if(!container) return;
+  const list=loadStockHistory();
+
+  if(list.length===0){
+    container.innerHTML='<div class="history-empty">No stock entries saved yet.</div>';
+    return;
+  }
+
+  container.innerHTML=list.map((e,i)=>{
+    const isShort=(e.stEx||'').trim().startsWith('-');
+    return '<div class="history-row" onclick="showStockImage('+i+')" role="button" tabindex="0" aria-label="View this stock entry as image">'+
+      '<span class="history-tank">'+escapeHtml(e.product||'—')+'</span>'+
+      '<span class="history-dip">Bal: '+escapeHtml(e.balance||'0.00')+'</span>'+
+      '<span class="history-vol'+(isShort?' is-short-text':' is-excess-text')+'">'+escapeHtml(e.stEx||'0.00')+'</span>'+
+      '<span class="history-time">'+escapeHtml(e.date||'')+'</span>'+
+      '<button type="button" class="history-edit" onclick="event.stopPropagation();openEditStock('+i+')" aria-label="Edit this entry">✏️</button>'+
+      '<button type="button" class="history-delete" onclick="event.stopPropagation();deleteStockEntry('+i+')" aria-label="Delete this entry">✕</button>'+
+      (e.editedAt?'<span class="history-edited">✏️ Edited: '+escapeHtml(e.editSummary||'')+' — '+escapeHtml(e.editedAt)+'</span>':'')+
+    '</div>';
+  }).join('');
+  renderEntryCounts();
+}
+
+/* ---------- Edit a saved stock entry ---------- */
+let editingStockIndex=-1;
+
+function openEditStock(index){
+  const list=loadStockHistory();
+  const e=list[index];
+  if(!e) return;
+  editingStockIndex=index;
+  document.getElementById('es_date').value=e.date||'';
+  const prodSel=document.getElementById('es_product');
+  if(e.product && ![...prodSel.options].some(function(o){return o.value===e.product;})){
+    const opt=document.createElement('option');
+    opt.value=e.product; opt.textContent=e.product+' (removed)';
+    prodSel.appendChild(opt);
+  }
+  prodSel.value=e.product||'';
+  document.getElementById('es_desc').value=e.desc||'';
+  document.getElementById('es_opening').value=(e.opening||'0').toString().replace(/,/g,'');
+  document.getElementById('es_arrival').value=(e.arrival||'0').toString().replace(/,/g,'');
+  document.getElementById('es_sale').value=(e.sale||'0').toString().replace(/,/g,'');
+  document.getElementById('es_dipStock').value=(e.dipStock||'').toString().replace(/,/g,'');
+  document.getElementById('es_dipMM').value='';
+  const msg=document.getElementById('editStockMsg');
+  if(msg) msg.textContent='';
+  document.getElementById('editStockModal').style.display='flex';
+}
+function closeEditStock(){
+  document.getElementById('editStockModal').style.display='none';
+  editingStockIndex=-1;
+}
+function closeEditStockOnBg(evt){
+  if(evt.target && evt.target.id==='editStockModal') closeEditStock();
+}
+function saveEditStock(){
+  if(editingStockIndex<0) return;
+  const list=loadStockHistory();
+  const old=list[editingStockIndex];
+  if(!old) return;
+
+  const rawDate=document.getElementById('es_date').value;
+  const product=document.getElementById('es_product').value.trim();
+  const desc=document.getElementById('es_desc').value.trim();
+  const opening=parseFloat(document.getElementById('es_opening').value)||0;
+  const arrival=parseFloat(document.getElementById('es_arrival').value)||0;
+  const sale=parseFloat(document.getElementById('es_sale').value)||0;
+  const dipInput=parseFloat(document.getElementById('es_dipStock').value);
+  const msg=document.getElementById('editStockMsg');
+
+  if(!product){
+    if(msg) msg.textContent='Product ka naam zaroor darj karein.';
+    return;
+  }
+
+  const total=opening+arrival;
+  const balance=total-sale;
+  const dipStock=isNaN(dipInput)?null:dipInput;
+  const stEx=dipStock!=null?(dipStock-balance):null;
+
+  const updated={
+    date: rawDate||old.date,
+    product: product,
+    desc: desc,
+    opening: document.getElementById('es_opening').value||'0',
+    arrival: document.getElementById('es_arrival').value||'0',
+    total: fmtStockNum(total),
+    sale: document.getElementById('es_sale').value||'0',
+    balance: fmtStockNum(balance),
+    dipStock: document.getElementById('es_dipStock').value||'',
+    stEx: stEx!=null?(stEx>=0?'+':'')+fmtStockNum(stEx):'0.00',
+    savedAt: old.savedAt
+  };
+
+  const changedFields=[];
+  const labels={date:'Date',product:'Product',desc:'Description',opening:'Opening',arrival:'Arrival',sale:'Sale',dipStock:'Dip Stock'};
+  Object.keys(labels).forEach(function(k){
+    if(String(old[k]||'')!==String(updated[k]||'')) changedFields.push(labels[k]);
+  });
+
+  if(changedFields.length){
+    updated.editedAt=formatDateDMY(new Date())+' '+formatTimeHM(new Date());
+    updated.editSummary='Updated: '+changedFields.join(', ');
+  }else{
+    updated.editedAt=old.editedAt;
+    updated.editSummary=old.editSummary;
+  }
+
+  list[editingStockIndex]=updated;
+  persistStockHistory(list);
+  renderStockHistory();
+  closeEditStock();
+}
+
+/* ---------- Stock exports (CSV / PDF / Excel / WhatsApp) ---------- */
+function exportStockCSV(){
+  const list=loadStockHistory();
+  if(list.length===0){ alert('No stock entries saved yet — nothing to export.'); return; }
+
+  const rows=[['Date','Product','Description','Opening','Arrival','Total','Sale','Balance','Dip Stock','Short/Excess']];
+  list.forEach(e=>rows.push([e.date,e.product,e.desc||'',e.opening,e.arrival,e.total,e.sale,e.balance,e.dipStock,e.stEx]));
+
+  const csvContent=rows.map(r=>r.map(csvEscape).join(',')).join('\r\n');
+  const blob=new Blob(['\ufeff'+csvContent],{type:'text/csv;charset=utf-8;'});
+  const stamp=new Date().toISOString().slice(0,10);
+  shareOrDownloadBlob(blob,'stock-register-'+stamp+'.csv','text/csv');
+}
+
+function exportStockPDF(){
+  const list=loadStockHistory();
+  if(list.length===0){ alert('No stock entries saved yet — nothing to export.'); return; }
+  if(!window.jspdf || !window.jspdf.jsPDF){
+    alert('PDF export needs an internet connection to load the first time. Please check your connection and try again.');
+    return;
+  }
+
+  const {jsPDF}=window.jspdf;
+  const doc=new jsPDF();
+
+  doc.setFontSize(16);
+  doc.setTextColor(37,99,235);
+  doc.text(getSiteName(),14,18);
+  doc.setFontSize(11);
+  doc.setTextColor(100,100,100);
+  doc.text('Stock Management Register',14,25);
+  doc.setFontSize(9);
+  doc.text('Generated: '+formatDateTimeDMY(new Date()),14,31);
+
+  const rows=list.map(e=>[e.date,e.product,e.desc||'',e.opening,e.arrival,e.total,e.sale,e.balance,e.dipStock,e.stEx]);
+
+  doc.autoTable({
+    startY:36,
+    head:[['Date','Product','Description','Opening','Arrival','Total','Sale','Balance','Dip Stock','Sh/Ex']],
+    body:rows,
+    headStyles:{fillColor:[37,99,235]},
+    styles:{fontSize:8}
+  });
+
+  const stamp=new Date().toISOString().slice(0,10);
+  const blob=doc.output('blob');
+  shareOrDownloadBlob(blob,'stock-register-'+stamp+'.pdf','application/pdf');
+}
+
+function exportStockExcel(){
+  const list=loadStockHistory();
+  if(list.length===0){ alert('No stock entries saved yet — nothing to export.'); return; }
+  if(!window.XLSX){
+    alert('Excel export needs an internet connection to load the first time. Please check your connection and try again.');
+    return;
+  }
+
+  const rows=[['Date','Product','Description','Opening','Arrival','Total','Sale','Balance','Dip Stock','Short/Excess']];
+  list.forEach(e=>rows.push([e.date,e.product,e.desc||'',e.opening,e.arrival,e.total,e.sale,e.balance,e.dipStock,e.stEx]));
+
+  const ws=XLSX.utils.aoa_to_sheet(rows);
+  ws['!cols']=[{wch:12},{wch:16},{wch:16},{wch:10},{wch:10},{wch:10},{wch:10},{wch:10},{wch:10},{wch:10}];
+  const wb=XLSX.utils.book_new();
+  XLSX.utils.book_append_sheet(wb,ws,'Stock Register');
+
+  const stamp=new Date().toISOString().slice(0,10);
+  const wbout=XLSX.write(wb,{bookType:'xlsx',type:'array'});
+  const blob=new Blob([wbout],{type:'application/octet-stream'});
+  shareOrDownloadBlob(blob,'stock-register-'+stamp+'.xlsx','application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
+}
+
+function shareStockWhatsApp(){
+  const list=loadStockHistory();
+  if(list.length===0){ alert('No stock entries saved yet — nothing to share.'); return; }
+
+  const recent=list.slice(0,20);
+  let msg='*'+getSiteName()+' — Stock Register*\n\n';
+  recent.forEach(e=>{
+    msg+='• '+e.product+' ('+e.date+') — Bal: '+e.balance+' | Dip: '+(e.dipStock||'-')+' | Sh/Ex: '+e.stEx+'\n';
+  });
+  msg+='\nSent from Fuel Dip Calculator app.';
+
+  const url='https://api.whatsapp.com/send?text='+encodeURIComponent(msg);
+  window.open(url,'_blank','noopener');
+}
+
+/* ---------- Print stock entry ---------- */
+function printStock(){
+  calcStock();
+  const d=gatherStockData();
+  const w=window.open('','_blank');
+  if(!w){ alert('Popup blocked. Please allow popups to print.'); return; }
+
+  const html='<!doctype html><html><head><meta charset="utf-8"><title>Stock Entry</title>'+
+    '<style>'+
+    'body{font-family:Arial,Helvetica,sans-serif;padding:24px;color:#1a1a1a;}'+
+    'h2{background:#37474f;color:#fff;padding:12px 14px;margin:0 0 16px;border-radius:6px;font-size:18px;}'+
+    'table{width:100%;border-collapse:collapse;margin-bottom:16px;}'+
+    'td,th{border:1px solid #999;padding:8px 10px;font-size:14px;}'+
+    'td:first-child{font-weight:700;background:#f3f3f3;width:42%;}'+
+    '.total-row td{font-weight:800;background:#fff8e1;}'+
+    'p.foot{font-size:11px;color:#777;margin-top:20px;}'+
+    '</style></head><body>'+
+    '<h2>Stock Management Entry</h2>'+
+    '<table>'+
+      '<tr><td>Date</td><td>'+escapeHtml(isoToDMY(d.date))+'</td></tr>'+
+      '<tr><td>Product</td><td>'+escapeHtml(d.product||'-')+'</td></tr>'+
+      '<tr><td>Description</td><td>'+escapeHtml(d.desc||'-')+'</td></tr>'+
+    '</table>'+
+    '<table>'+
+      '<tr><td>Opening</td><td>'+d.opening+'</td></tr>'+
+      '<tr><td>Arrival</td><td>'+d.arrival+'</td></tr>'+
+      '<tr class="total-row"><td>TOTAL</td><td>'+d.total+'</td></tr>'+
+      '<tr><td>Sale</td><td>'+d.sale+'</td></tr>'+
+      '<tr class="total-row"><td>BALANCE</td><td>'+d.balance+'</td></tr>'+
+      '<tr><td>Dip Stock (Ltrs)</td><td>'+(d.dipStock||'-')+'</td></tr>'+
+      '<tr class="total-row"><td>SHORT / EXCESS</td><td>'+d.stEx+'</td></tr>'+
+    '</table>'+
+    '<p class="foot">Generated: '+formatDateTimeDMY(new Date())+'</p>'+
+    '</body></html>';
+
+  w.document.write(html);
+  w.document.close();
+  w.onload=function(){ w.focus(); w.print(); };
+}
+
+function isoToDMY(iso){
+  if(!iso || !/^\d{4}-\d{2}-\d{2}$/.test(iso)) return iso||'-';
+  const p=iso.split('-');
+  const dd=new Date(Number(p[0]),Number(p[1])-1,Number(p[2]));
+  return isNaN(dd.getTime()) ? iso : formatDateDMY(dd);
+}
+
+/* ---------- Share stock entry as image (thermal-invoice style, drawn on canvas) ---------- */
+function buildStockReceiptCanvas(dataOverride){
+  const d=dataOverride||gatherStockData();
+  const isShort=(d.stEx||'').trim().startsWith('-');
+
+  const W=576;
+  const PAD=26;
+  const rowH=32;
+
+  const headRows=[
+    ['Date', isoToDMY(d.date)],
+    ['Product', d.product||'-'],
+    ['Description', d.desc||'-']
+  ];
+  const figRows=[
+    ['Opening', d.opening],
+    ['Arrival', d.arrival],
+    ['TOTAL', d.total],
+    ['Sale', d.sale],
+    ['BALANCE', d.balance],
+    ['Dip Stock (Ltrs)', d.dipStock||'-'],
+    ['SHORT / EXCESS', d.stEx]
+  ];
+
+  let H=PAD;
+  H+=34;
+  H+=16; H+=54;
+  H+=16;
+  H+=headRows.length*rowH;
+  H+=16;
+  H+=figRows.length*rowH;
+  H+=16;
+  H+=48+PAD;
+
+  const scale=2;
+  const canvas=document.createElement('canvas');
+  canvas.width=W*scale;
+  canvas.height=H*scale;
+  const ctx=canvas.getContext('2d');
+  ctx.scale(scale,scale);
+
+  ctx.fillStyle='#ffffff';
+  ctx.fillRect(0,0,W,H);
+  ctx.fillStyle='#1a1a1a';
+  ctx.textBaseline='alphabetic';
+
+  let y=PAD;
+  ctx.textAlign='center';
+  ctx.font='800 21px Arial, Helvetica, sans-serif';
+  ctx.fillText(getSiteName(), W/2, y);
+  y+=20;
+  drawDashedLine(ctx,PAD,W-PAD,y);
+  y+=30;
+  ctx.font='800 17px Arial, Helvetica, sans-serif';
+  ctx.fillText('STOCK MANAGEMENT ENTRY', W/2, y);
+  y+=24;
+  drawDashedLine(ctx,PAD,W-PAD,y);
+  y+=26;
+
+  ctx.textAlign='left';
+  ctx.font='600 14.5px Arial, Helvetica, sans-serif';
+  headRows.forEach(function(r){
+    ctx.fillStyle='#5f6368';
+    ctx.fillText(r[0], PAD, y);
+    ctx.fillStyle='#1a1a1a';
+    ctx.textAlign='right';
+    ctx.fillText(String(r[1]), W-PAD, y);
+    ctx.textAlign='left';
+    y+=rowH;
+  });
+
+  drawDashedLine(ctx,PAD,W-PAD,y-10);
+  y+=18;
+
+  figRows.forEach(function(r,i){
+    const isFinal=i===figRows.length-1;
+    const isTotalLike = r[0]==='TOTAL' || r[0]==='BALANCE';
+    ctx.font=(isFinal||isTotalLike?'800 15.5px Arial, Helvetica, sans-serif':'500 14.5px Arial, Helvetica, sans-serif');
+    ctx.fillStyle = isFinal ? (isShort?'#dc2626':'#16a34a') : '#1a1a1a';
+    ctx.fillText(r[0], PAD, y);
+    ctx.textAlign='right';
+    ctx.fillText(String(r[1]), W-PAD, y);
+    ctx.textAlign='left';
+    ctx.fillStyle='#1a1a1a';
+    y+=rowH;
+  });
+
+  y+=6;
+  drawDashedLine(ctx,PAD,W-PAD,y);
+  y+=26;
+
+  ctx.textAlign='center';
+  ctx.font='400 12px Arial, Helvetica, sans-serif';
+  ctx.fillStyle='#777';
+  ctx.fillText('Generated: '+(d.savedAt||formatDateTimeDMY(new Date())), W/2, y);
+  y+=18;
+  ctx.fillText(d.editedAt?('Edited: '+(d.editSummary||'')+' — '+d.editedAt):(getSiteName()+' Fuel Dip Calculator'), W/2, y);
+
+  return canvas;
+}
+
+function shareStockImage(){
+  calcStock();
+  try{
+    const canvas=buildStockReceiptCanvas();
+    canvas.toBlob(function(blob){
+      if(!blob){ alert('Image nahi ban saki. Dobara koshish karein.'); return; }
+      const stamp=formatDateDMY(new Date()).replace(/-/g,'');
+      shareOrDownloadBlob(blob,'stock-entry-'+stamp+'.png','image/png');
+    },'image/png');
+  }catch(e){
+    alert('Image banate waqt masla hua. Dobara koshish karein.');
+  }
+}
+
+/* ---------- View a saved stock entry as an image (click on history row) ---------- */
+function showStockImage(index){
+  const list=loadStockHistory();
+  const e=list[index];
+  if(!e) return;
+  try{
+    const canvas=buildStockReceiptCanvas(e);
+    const stamp=(e.date||formatDateDMY(new Date())).toString().replace(/[^0-9A-Za-z]/g,'');
+    openImagePreview(canvas,'stock-entry-'+stamp+'.png');
+  }catch(err){
+    alert('Image banate waqt masla hua. Dobara koshish karein.');
+  }
+}
+
+/* ---------- Build a receipt-style image for a saved reading (Tank dip) entry ---------- */
+function buildReadingReceiptCanvas(e){
+  const W=576;
+  const PAD=26;
+  const rowH=32;
+
+  const rows=[
+    ['Tank', e.tank||'-'],
+    ['Dip', e.dip+' mm'],
+    ['Available Fuel', e.volume||'-'],
+    ['Day', e.day||'-'],
+    ['Date & Time', e.time||'-']
+  ];
+  if(e.note) rows.push(['Note', e.note]);
+
+  let H=PAD;
+  H+=34;
+  H+=16; H+=54;
+  H+=16;
+  H+=rows.length*rowH;
+  H+=16;
+  H+=48+PAD;
+  if(e.editedAt) H+=18;
+
+  const scale=2;
+  const canvas=document.createElement('canvas');
+  canvas.width=W*scale;
+  canvas.height=H*scale;
+  const ctx=canvas.getContext('2d');
+  ctx.scale(scale,scale);
+
+  ctx.fillStyle='#ffffff';
+  ctx.fillRect(0,0,W,H);
+  ctx.fillStyle='#1a1a1a';
+  ctx.textBaseline='alphabetic';
+
+  let y=PAD;
+  ctx.textAlign='center';
+  ctx.font='800 21px Arial, Helvetica, sans-serif';
+  ctx.fillText(getSiteName(), W/2, y);
+  y+=20;
+  drawDashedLine(ctx,PAD,W-PAD,y);
+  y+=30;
+  ctx.font='800 17px Arial, Helvetica, sans-serif';
+  ctx.fillText('DIP READING ENTRY', W/2, y);
+  y+=24;
+  drawDashedLine(ctx,PAD,W-PAD,y);
+  y+=26;
+
+  ctx.textAlign='left';
+  rows.forEach(function(r,i){
+    const isVol = r[0]==='Available Fuel';
+    ctx.font=(isVol?'800 15.5px Arial, Helvetica, sans-serif':'600 14.5px Arial, Helvetica, sans-serif');
+    ctx.fillStyle = isVol ? '#16a34a' : '#5f6368';
+    ctx.fillText(r[0], PAD, y);
+    ctx.fillStyle = isVol ? '#16a34a' : '#1a1a1a';
+    ctx.textAlign='right';
+    const maxW=W-PAD*2-140;
+    let val=String(r[1]);
+    while(ctx.measureText(val).width>maxW && val.length>3){ val=val.slice(0,-1); }
+    if(val!==String(r[1])) val=val.replace(/\s*$/,'')+'…';
+    ctx.fillText(val, W-PAD, y);
+    ctx.textAlign='left';
+    y+=rowH;
+  });
+
+  y+=6;
+  drawDashedLine(ctx,PAD,W-PAD,y);
+  y+=26;
+
+  ctx.textAlign='center';
+  ctx.font='400 12px Arial, Helvetica, sans-serif';
+  ctx.fillStyle='#777';
+  ctx.fillText('Saved: '+(e.day?e.day+', ':'')+(e.time||''), W/2, y);
+  y+=18;
+  ctx.fillText(getSiteName()+' Fuel Dip Calculator', W/2, y);
+  if(e.editedAt){
+    y+=18;
+    ctx.fillText('✏️ Edited: '+(e.editSummary||'')+' — '+e.editedAt, W/2, y);
+  }
+
+  return canvas;
+}
+
+/* ---------- View a saved reading entry as an image (click on history row) ---------- */
+function showReadingImage(index){
+  const list=loadHistory();
+  const e=list[index];
+  if(!e) return;
+  try{
+    const canvas=buildReadingReceiptCanvas(e);
+    const stamp=(e.time||formatDateDMY(new Date())).toString().replace(/[^0-9A-Za-z]/g,'');
+    openImagePreview(canvas,'reading-'+stamp+'.png');
+  }catch(err){
+    alert('Image banate waqt masla hua. Dobara koshish karein.');
+  }
+}
+
+/* ---------- Generic image preview modal ---------- */
+let previewImageBlob=null;
+let previewImageFilename='entry.png';
+
+function openImagePreview(canvas,filename){
+  previewImageFilename=filename||'entry.png';
+  canvas.toBlob(function(blob){
+    if(!blob){ alert('Image nahi ban saki. Dobara koshish karein.'); return; }
+    previewImageBlob=blob;
+    const url=URL.createObjectURL(blob);
+    const img=document.getElementById('imagePreviewImg');
+    if(img){
+      if(img.dataset.prevUrl) URL.revokeObjectURL(img.dataset.prevUrl);
+      img.src=url;
+      img.dataset.prevUrl=url;
+    }
+    const modal=document.getElementById('imagePreviewModal');
+    if(modal) modal.style.display='flex';
+  },'image/png');
+}
+
+function closeImagePreview(evt){
+  if(evt && evt.target && evt.target.id!=='imagePreviewModal') return;
+  const modal=document.getElementById('imagePreviewModal');
+  if(modal) modal.style.display='none';
+}
+
+function downloadPreviewImage(){
+  if(!previewImageBlob) return;
+  const url=URL.createObjectURL(previewImageBlob);
+  const a=document.createElement('a');
+  a.href=url;
+  a.download=previewImageFilename;
+  document.body.appendChild(a);
+  a.click();
+  document.body.removeChild(a);
+  URL.revokeObjectURL(url);
+}
+
+function sharePreviewImage(){
+  if(!previewImageBlob) return;
+  shareOrDownloadBlob(previewImageBlob,previewImageFilename,'image/png');
+}
+
+/* ---------- Init ---------- */
+(function initStock(){
+  const dateInput=document.getElementById('sk_date');
+  if(dateInput && !dateInput.value){
+    dateInput.value=new Date().toISOString().slice(0,10);
+  }
+  calcStock();
+  renderStockHistory();
+})();
+
+/* ================= Stock Product List (Add / Edit / Remove) ================= */
+const PRODUCT_LIST_KEY='stockProductList';
+const DEFAULT_PRODUCTS=['Diesel Ultra','Diesel Storage','Super Plus'];
+
+function loadProductList(){
+  try{
+    const list=JSON.parse(localStorage.getItem(PRODUCT_LIST_KEY));
+    if(Array.isArray(list) && list.length) return list;
+  }catch(e){}
+  return DEFAULT_PRODUCTS.slice();
+}
+function persistProductList(list){
+  try{ localStorage.setItem(PRODUCT_LIST_KEY,JSON.stringify(list)); }catch(e){}
+}
+
+function populateProductSelects(selectedValue){
+  const list=loadProductList();
+  ['sk_product','es_product'].forEach(function(id){
+    const sel=document.getElementById(id);
+    if(!sel) return;
+    const prev=selectedValue!==undefined?selectedValue:sel.value;
+    sel.innerHTML=list.map(function(p){ return '<option value="'+escapeHtml(p)+'">'+escapeHtml(p)+'</option>'; }).join('');
+    if(list.indexOf(prev)!==-1) sel.value=prev;
+  });
+}
+
+function openManageProducts(){
+  renderProductManageList();
+  const msg=document.getElementById('manageProductsMsg');
+  if(msg) msg.textContent='';
+  document.getElementById('newProductInput').value='';
+  document.getElementById('manageProductsModal').style.display='flex';
+}
+function closeManageProducts(){
+  document.getElementById('manageProductsModal').style.display='none';
+  populateProductSelects();
+  calcStock();
+}
+function closeManageProductsOnBg(evt){
+  if(evt.target && evt.target.id==='manageProductsModal') closeManageProducts();
+}
+
+function renderProductManageList(){
+  const container=document.getElementById('productManageList');
+  if(!container) return;
+  const list=loadProductList();
+
+  if(list.length===0){
+    container.innerHTML='<div class="history-empty">No products added yet.</div>';
+    return;
+  }
+
+  container.innerHTML=list.map(function(p,i){
+    return '<div class="product-manage-row">'+
+      '<input type="text" class="settings-input product-edit-input" value="'+escapeHtml(p)+'" onchange="renameProduct('+i+',this.value)">'+
+      '<button type="button" class="history-delete" onclick="removeProduct('+i+')" aria-label="Remove product">✕</button>'+
+    '</div>';
+  }).join('');
+}
+
+function addNewProduct(){
+  const input=document.getElementById('newProductInput');
+  const name=input.value.trim();
+  const msg=document.getElementById('manageProductsMsg');
+  if(!name){
+    if(msg) msg.textContent='Product ka naam darj karein.';
+    return;
+  }
+  const list=loadProductList();
+  if(list.some(function(p){ return p.toLowerCase()===name.toLowerCase(); })){
+    if(msg) msg.textContent='Ye product pehle se list mein maujood hai.';
+    return;
+  }
+  list.push(name);
+  persistProductList(list);
+  input.value='';
+  if(msg) msg.textContent='';
+  renderProductManageList();
+}
+
+function renameProduct(index,newName){
+  const name=newName.trim();
+  const list=loadProductList();
+  if(index<0||index>=list.length) return;
+  if(!name){ renderProductManageList(); return; }
+  list[index]=name;
+  persistProductList(list);
+}
+
+function removeProduct(index){
+  const list=loadProductList();
+  if(index<0||index>=list.length) return;
+  if(!confirm('Remove product "'+list[index]+'" from the list?\n\n(Saved stock entries won\'t be affected.)')) return;
+  list.splice(index,1);
+  persistProductList(list);
+  renderProductManageList();
+}
+
+/* ---------- Dip (mm) → auto Dip Stock (Ltrs) ---------- */
+function onStockDipMM(){
+  const mmRaw=document.getElementById('sk_dipMM').value;
+  const mm=parseFloat(mmRaw);
+  if(mmRaw!=='' && !isNaN(mm)){
+    const ltrs=interp(tank50,mm);
+    if(ltrs!=null) document.getElementById('sk_dipStock').value=ltrs.toFixed(2);
+  }
+  calcStock();
+}
+function onEditStockDipMM(){
+  const mmRaw=document.getElementById('es_dipMM').value;
+  const mm=parseFloat(mmRaw);
+  if(mmRaw!=='' && !isNaN(mm)){
+    const ltrs=interp(tank50,mm);
+    if(ltrs!=null) document.getElementById('es_dipStock').value=ltrs.toFixed(2);
+  }
+}
+
+(function initStockProducts(){
+  populateProductSelects();
+  autoFillOpeningFromLastBalance();
+})();
+
+/* ================= Stock: auto-fill Opening from last saved Balance ================= */
+function getStockOpeningHintEl(){
+  return document.getElementById('sk_openingHint');
+}
+
+function autoFillOpeningFromLastBalance(){
+  const productSel=document.getElementById('sk_product');
+  const openingInput=document.getElementById('sk_opening');
+  if(!productSel||!openingInput) return;
+  const product=productSel.value;
+  const hint=getStockOpeningHintEl();
+  if(!product){ if(hint) hint.textContent=''; return; }
+  const list=loadStockHistory();
+  const last=list.find(function(e){ return e.product===product; });
+  if(last){
+    const bal=parseFloat(String(last.balance||'').replace(/,/g,''));
+    if(!isNaN(bal) && openingInput.value===''){
+      openingInput.value=bal.toFixed(2);
+      calcStock();
+      if(hint) hint.textContent='Auto-filled from last balance ('+(last.date||'')+')';
+      return;
+    }
+  }
+  if(hint) hint.textContent='';
+}
+
+function onStockProductChange(){
+  const openingInput=document.getElementById('sk_opening');
+  if(openingInput) openingInput.value='';
+  autoFillOpeningFromLastBalance();
+  calcStock();
+}
+
 /* ================= Fuel Tanker Unloading Status ================= */
 const UNLOAD_TANKS={ t50:{data:tank50,label:'50-KL Tank'}, t25:{data:tank25,label:'25-KL Tank'} };
 const UNLOAD_HISTORY_KEY='fuelTankerUnloadHistory';
@@ -1613,6 +2417,7 @@ function saveEditUnload(){
 }
 
 function renderUnloadHistory(){
+  renderEntryCounts();
   const container=document.getElementById('unloadHistoryList');
   if(!container) return;
   const list=loadUnloadHistory();

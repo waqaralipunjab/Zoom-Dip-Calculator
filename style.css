@@ -1232,7 +1232,6 @@ body.dark-theme .history-note{
   height: 4px;
   background: var(--shell-yellow);
   opacity: 1;
-  border-radius: var(--radius-lg) var(--radius-lg) 0 0;
 }
 
 .dev-role{
@@ -2613,3 +2612,63 @@ body.view-mobile .bottom-nav{
   color: #555;
   padding: 0 12px 8px;
 }
+
+/* ---------- Product dropdown + manage button ---------- */
+.field-with-btn{
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.field-with-btn .scheme-select{ flex: 1; }
+.field-manage-btn{
+  flex-shrink: 0;
+  width: 38px;
+  height: 38px;
+  border-radius: 10px;
+  border: 1.5px solid var(--glass-border);
+  background: var(--glass);
+  color: var(--text);
+  font-size: 16px;
+  cursor: pointer;
+  transition: border-color .15s ease, background .15s ease, transform .15s ease;
+}
+.field-manage-btn:hover{ border-color: #2563eb; background: rgba(37,99,235,.08); transform: translateY(-1px); }
+.field-manage-btn:active{ transform: translateY(0) scale(.94); }
+
+.product-manage-list{
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin-bottom: 14px;
+  max-height: 260px;
+  overflow-y: auto;
+}
+.product-manage-row{
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.product-edit-input{ flex: 1; }
+
+/* ---------- Saved Entries count cards ---------- */
+.entry-counts-grid{
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 10px;
+  width: 100%;
+}
+.entry-count-card{
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 4px;
+  padding: 12px 6px;
+  border-radius: 12px;
+  background: rgba(37,99,235,.06);
+  border: 1px solid var(--glass-border);
+  text-align: center;
+}
+.entry-count-icon{ font-size: 18px; line-height: 1; }
+.entry-count-num{ font-size: 20px; font-weight: 800; color: var(--primary-dark); line-height: 1.1; }
+.entry-count-label{ font-size: 10.5px; font-weight: 600; color: var(--text-muted); line-height: 1.25; }
