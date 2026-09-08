@@ -660,6 +660,12 @@
         <button type="button" class="history-clear" onclick="clearHistory()" data-i18n="unload.clearAll">Clear</button>
       </div>
     </div>
+    <div class="report-range-row">
+      <label class="field-inline"><span>Date From</span><input type="date" id="rp_rangeFrom" onchange="renderHistory()"></label>
+      <label class="field-inline"><span>Upto Date</span><input type="date" id="rp_rangeTo" onchange="renderHistory()"></label>
+      <button type="button" class="range-clear-btn" onclick="clearRangeInputs('rp_rangeFrom','rp_rangeTo',renderHistory)">✕ Clear Range</button>
+    </div>
+    <div id="rp_rangeNote" class="report-range-note"></div>
     <div id="historyList" class="history-list">
       <div class="history-empty" data-i18n="reports.noReadings">No readings saved yet. Tap any saved entry to view as image.</div>
     </div>
@@ -743,6 +749,13 @@
         <input id="sk_dipStock" class="settings-input" inputmode="decimal" autocomplete="off" placeholder="0" oninput="calcStock()">
       </label>
       <label class="field">
+        <span class="field-label">🛢 Dip Chart (Tank)</span>
+        <select id="sk_tank" class="scheme-select" onchange="onStockDipMM()">
+          <option value="t50">50-KL Tank</option>
+          <option value="t25">25-KL Tank</option>
+        </select>
+      </label>
+      <label class="field">
         <span class="field-label">📏 Dip (mm) — auto-fills Ltrs above</span>
         <span class="field-input-wrap">
           <input id="sk_dipMM" inputmode="decimal" autocomplete="off" placeholder="mm" oninput="onStockDipMM()">
@@ -776,6 +789,12 @@
         <button type="button" class="history-clear" onclick="clearStockHistory()">Clear</button>
       </div>
     </div>
+    <div class="report-range-row">
+      <label class="field-inline"><span>Date From</span><input type="date" id="sk_rangeFrom" onchange="renderStockHistory()"></label>
+      <label class="field-inline"><span>Upto Date</span><input type="date" id="sk_rangeTo" onchange="renderStockHistory()"></label>
+      <button type="button" class="range-clear-btn" onclick="clearRangeInputs('sk_rangeFrom','sk_rangeTo',renderStockHistory)">✕ Clear Range</button>
+    </div>
+    <div id="sk_rangeNote" class="report-range-note"></div>
     <div id="stockHistoryList" class="history-list">
       <div class="history-empty">No stock entries saved yet.</div>
     </div>
@@ -869,6 +888,12 @@
         <button type="button" class="history-clear" onclick="clearUnloadHistory()" data-i18n="unload.clearAll">Clear</button>
       </div>
     </div>
+    <div class="report-range-row">
+      <label class="field-inline"><span>Date From</span><input type="date" id="ul_rangeFrom" onchange="renderUnloadHistory()"></label>
+      <label class="field-inline"><span>Upto Date</span><input type="date" id="ul_rangeTo" onchange="renderUnloadHistory()"></label>
+      <button type="button" class="range-clear-btn" onclick="clearRangeInputs('ul_rangeFrom','ul_rangeTo',renderUnloadHistory)">✕ Clear Range</button>
+    </div>
+    <div id="ul_rangeNote" class="report-range-note"></div>
     <div id="unloadHistoryList" class="history-list">
       <div class="history-empty" data-i18n="unload.noRecords">No unloading records saved yet. Tap any saved entry to view as image.</div>
     </div>
@@ -940,6 +965,13 @@
         <label class="field">
           <span class="field-label">Dip Stock (Ltrs)</span>
           <input id="es_dipStock" class="settings-input" inputmode="decimal" autocomplete="off">
+        </label>
+        <label class="field">
+          <span class="field-label">🛢 Dip Chart (Tank)</span>
+          <select id="es_tank" class="scheme-select" onchange="onEditStockDipMM()">
+            <option value="t50">50-KL Tank</option>
+            <option value="t25">25-KL Tank</option>
+          </select>
         </label>
         <label class="field">
           <span class="field-label">📏 Dip (mm) — auto-fills Ltrs above</span>

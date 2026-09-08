@@ -252,7 +252,7 @@ tickClock();
 
 /* ---------- Reading history (persisted in localStorage) ---------- */
 const HISTORY_KEY='fuelDipHistory';
-const HISTORY_LIMIT=200;
+const HISTORY_LIMIT=1000;
 
 function loadHistory(){
   try{
@@ -389,19 +389,63 @@ function escapeHtml(str){
     .replace(/"/g,'&quot;').replace(/'/g,'&#39;');
 }
 
+/* ---------- Generic date-range filter helper (used by all Report views) ---------- */
+function getRangeValues(fromId,toId){
+  const fromEl=document.getElementById(fromId);
+  const toEl=document.getElementById(toId);
+  return { from:(fromEl&&fromEl.value)?fromEl.value:'', to:(toEl&&toEl.value)?toEl.value:'' };
+}
+function isoInRange(iso,range){
+  if(!iso) return !(range.from||range.to);
+  if(range.from && iso<range.from) return false;
+  if(range.to && iso>range.to) return false;
+  return true;
+}
+function formatDMYShort(iso){
+  if(!iso) return '';
+  const m=/^(\d{4})-(\d{2})-(\d{2})/.exec(String(iso));
+  if(!m) return String(iso);
+  return m[3]+'-'+m[2]+'-'+m[1].slice(2);
+}
+function rangeLabel(range){
+  if(!range.from && !range.to) return 'All Dates';
+  const f=range.from?formatDMYShort(range.from):'Start';
+  const t=range.to?formatDMYShort(range.to):'Today';
+  return f+' to '+t;
+}
+function clearRangeInputs(fromId,toId,renderFn){
+  const fromEl=document.getElementById(fromId), toEl=document.getElementById(toId);
+  if(fromEl) fromEl.value='';
+  if(toEl) toEl.value='';
+  if(typeof renderFn==='function') renderFn();
+}
+
+function getFilteredHistory(){
+  const range=getRangeValues('rp_rangeFrom','rp_rangeTo');
+  const list=loadHistory();
+  const filtered=list.map(function(e,i){ return {e:e,idx:i}; }).filter(function(o){
+    const iso=o.e.ts?new Date(o.e.ts).toISOString().slice(0,10):'';
+    return isoInRange(iso,range);
+  });
+  return {list:filtered,range:range};
+}
+
 function renderHistory(){
   renderEntryCounts();
   const container=document.getElementById('historyList');
   if(!container) return;
-  const list=loadHistory();
+  const {list,range}=getFilteredHistory();
+  const noteEl=document.getElementById('rp_rangeNote');
+  if(noteEl) noteEl.textContent='Showing: '+rangeLabel(range)+' ('+list.length+' entries)';
 
   if(list.length===0){
-    container.innerHTML='<div class="history-empty">No readings saved yet.</div>';
+    container.innerHTML='<div class="history-empty">No readings saved for this date range.</div>';
     return;
   }
 
-  container.innerHTML=list.map((e,i)=>
-    '<div class="history-row history-row-clickable'+(e.note?' has-note':'')+'" onclick="viewReadingAsImage('+i+')" title="Tap to view as image">'+
+  container.innerHTML=list.map(function(o){
+    const e=o.e, i=o.idx;
+    return '<div class="history-row history-row-clickable'+(e.note?' has-note':'')+'" onclick="viewReadingAsImage('+i+')" title="Tap to view as image">'+
       '<span class="history-tank">'+escapeHtml(e.tank)+'</span>'+
       '<span class="history-dip">'+e.dip+' mm</span>'+
       '<span class="history-vol">'+escapeHtml(e.volume)+'</span>'+
@@ -410,8 +454,8 @@ function renderHistory(){
       '<button type="button" class="history-delete" onclick="event.stopPropagation();deleteReading('+i+')" aria-label="Delete this reading">✕</button>'+
       (e.note?'<span class="history-note">📝 '+escapeHtml(e.note)+'</span>':'')+
       (e.editedAt?'<span class="history-edited">✏️ Edited: '+escapeHtml(e.editSummary||'')+' — '+escapeHtml(e.editedAt)+'</span>':'')+
-    '</div>'
-  ).join('');
+    '</div>';
+  }).join('');
 }
 
 /* ---------- View reading history entry as image ---------- */
@@ -503,9 +547,10 @@ function csvEscape(val){
 }
 
 function exportHistoryCSV(){
-  const list=loadHistory();
+  const {list:filtered,range}=getFilteredHistory();
+  const list=filtered.map(o=>o.e);
   if(list.length===0){
-    alert('No readings saved yet — nothing to export.');
+    alert('No readings saved for this date range — nothing to export.');
     return;
   }
   const site=getSiteHeaderText();
@@ -513,6 +558,7 @@ function exportHistoryCSV(){
   headerRows.push(['Site Name',site.name]);
   if(site.address) headerRows.push(['Address',site.address]);
   headerRows.push(['Report Date',formatDateDMY(new Date())]);
+  headerRows.push(['Date Range',rangeLabel(range)]);
   headerRows.push([]);
   const rows=headerRows.concat([['Tank','Dip (mm)','Volume','Day','Date & Time','Note']]);
   list.forEach(e=>{
@@ -527,9 +573,10 @@ function exportHistoryCSV(){
 
 /* ---------- Export PDF ---------- */
 function exportHistoryPDF(){
-  const list=loadHistory();
+  const {list:filtered,range}=getFilteredHistory();
+  const list=filtered.map(o=>o.e);
   if(list.length===0){
-    alert('No readings saved yet — nothing to export.');
+    alert('No readings saved for this date range — nothing to export.');
     return;
   }
   if(!window.jspdf || !window.jspdf.jsPDF){
@@ -557,7 +604,7 @@ function exportHistoryPDF(){
   doc.text('Fuel Dip Reading Report',14,y);
   y+=6;
   doc.setFontSize(9);
-  doc.text('Generated: '+formatDateTimeDMY(new Date()),14,y);
+  doc.text('Generated: '+formatDateTimeDMY(new Date())+'   |   Date Range: '+rangeLabel(range),14,y);
   y+=8;
 
   const rows=list.map(e=>[e.tank,e.dip+' mm',e.volume,e.day||'',e.time,e.note||'']);
@@ -577,9 +624,10 @@ function exportHistoryPDF(){
 
 /* ---------- Export Excel ---------- */
 function exportHistoryExcel(){
-  const list=loadHistory();
+  const {list:filtered,range}=getFilteredHistory();
+  const list=filtered.map(o=>o.e);
   if(list.length===0){
-    alert('No readings saved yet — nothing to export.');
+    alert('No readings saved for this date range — nothing to export.');
     return;
   }
   if(!window.XLSX){
@@ -591,6 +639,7 @@ function exportHistoryExcel(){
   rows.push(['Site Name',site.name]);
   if(site.address) rows.push(['Address',site.address]);
   rows.push(['Report Date',formatDateDMY(new Date())]);
+  rows.push(['Date Range',rangeLabel(range)]);
   rows.push([]);
   rows.push(['Tank','Dip (mm)','Volume','Day','Date & Time','Note']);
   list.forEach(e=>rows.push([e.tank,e.dip,e.volume,e.day||'',e.time,e.note||'']));
@@ -608,16 +657,18 @@ function exportHistoryExcel(){
 
 /* ---------- WhatsApp share ---------- */
 function shareHistoryWhatsApp(){
-  const list=loadHistory();
+  const {list:filtered,range}=getFilteredHistory();
+  const list=filtered.map(o=>o.e);
   if(list.length===0){
-    alert('No readings saved yet — nothing to share.');
+    alert('No readings saved for this date range — nothing to share.');
     return;
   }
   const site=getSiteHeaderText();
   const recent=list.slice(0,20);
   let msg='*'+site.name+' — Fuel Dip Readings*\n';
   if(site.address) msg+=site.address+'\n';
-  msg+='Report: '+formatDateDMY(new Date())+'\n\n';
+  msg+='Report: '+formatDateDMY(new Date())+'\n';
+  msg+='Date Range: '+rangeLabel(range)+'\n\n';
   recent.forEach(e=>{
     const dayPart=e.day?e.day+', ':'';
     const notePart=e.note?' — 📝 '+e.note:'';
@@ -1367,7 +1418,7 @@ function showPanel(navId){
 
 /* ================= Stock Management ================= */
 const STOCK_HISTORY_KEY='fuelStockHistory';
-const STOCK_HISTORY_LIMIT=500;
+const STOCK_HISTORY_LIMIT=1000;
 
 function fmtStockNum(x){
   if(x==null||isNaN(x)) return '0.00';
@@ -1404,6 +1455,7 @@ function gatherStockData(){
     sale: document.getElementById('sk_sale').value || '0',
     balance: document.getElementById('sk_balance').innerText,
     dipStock: document.getElementById('sk_dipStock').value || '',
+    tankId: (document.getElementById('sk_tank')&&document.getElementById('sk_tank').value) || 't50',
     stEx: document.getElementById('sk_stEx').innerText,
     savedAt: formatDateDMY(new Date())+' '+formatTimeHM(new Date())
   };
@@ -1417,6 +1469,7 @@ function clearStockForm(){
   document.getElementById('sk_sale').value='';
   document.getElementById('sk_dipStock').value='';
   document.getElementById('sk_dipMM').value='';
+  if(document.getElementById('sk_tank')) document.getElementById('sk_tank').value='t50';
   calcStock();
   autoFillOpeningFromLastBalance();
 }
@@ -1461,29 +1514,55 @@ function deleteStockEntry(index){
   renderStockHistory();
 }
 
+function getFilteredStockList(){
+  const range=getRangeValues('sk_rangeFrom','sk_rangeTo');
+  const list=loadStockHistory();
+  const filtered=list.map(function(e,i){ return {e:e,idx:i}; }).filter(function(o){
+    return isoInRange(o.e.date,range);
+  });
+  return {list:filtered,range:range};
+}
+
 function renderStockHistory(){
   renderEntryCounts();
   const container=document.getElementById('stockHistoryList');
   if(!container) return;
-  const list=loadStockHistory();
+  const {list,range}=getFilteredStockList();
+  const noteEl=document.getElementById('sk_rangeNote');
+  if(noteEl) noteEl.textContent='Showing: '+rangeLabel(range)+' ('+list.length+' entries)';
 
   if(list.length===0){
-    container.innerHTML='<div class="history-empty">No stock entries saved yet.</div>';
+    container.innerHTML='<div class="history-empty">No stock entries saved for this date range.</div>';
     return;
   }
 
-  container.innerHTML=list.map((e,i)=>{
+  let html='<div class="stock-report-table-wrap"><table class="stock-report-table">'+
+    '<thead><tr><th>Date</th><th>Product</th><th>Description</th><th>Opening</th><th>Arrival</th>'+
+    '<th>Total</th><th>Sale</th><th>Balance</th><th>Dip Stock</th><th>Sh/Ex</th><th></th></tr></thead><tbody>';
+
+  list.forEach(function(o){
+    const e=o.e, i=o.idx;
     const isShort=(e.stEx||'').trim().startsWith('-');
-    return '<div class="history-row" onclick="showStockImage('+i+')" role="button" tabindex="0" aria-label="View this stock entry as image">'+
-      '<span class="history-tank">'+escapeHtml(e.product||'—')+'</span>'+
-      '<span class="history-dip">Bal: '+escapeHtml(e.balance||'0.00')+'</span>'+
-      '<span class="history-vol'+(isShort?' is-short-text':' is-excess-text')+'">'+escapeHtml(e.stEx||'0.00')+'</span>'+
-      '<span class="history-time">'+escapeHtml(e.date||'')+'</span>'+
-      '<button type="button" class="history-edit" onclick="event.stopPropagation();openEditStock('+i+')" aria-label="Edit this entry">✏️</button>'+
-      '<button type="button" class="history-delete" onclick="event.stopPropagation();deleteStockEntry('+i+')" aria-label="Delete this entry">✕</button>'+
-      (e.editedAt?'<span class="history-edited">✏️ Edited: '+escapeHtml(e.editSummary||'')+' — '+escapeHtml(e.editedAt)+'</span>':'')+
-    '</div>';
-  }).join('');
+    html+='<tr onclick="showStockImage('+i+')" role="button" tabindex="0" aria-label="View this stock entry as image">'+
+      '<td>'+escapeHtml(formatDMYShort(e.date))+'</td>'+
+      '<td>'+escapeHtml(e.product||'—')+'</td>'+
+      '<td>'+escapeHtml(e.desc||'')+'</td>'+
+      '<td>'+escapeHtml(e.opening||'0')+'</td>'+
+      '<td>'+escapeHtml(e.arrival||'0')+'</td>'+
+      '<td>'+escapeHtml(e.total||'0.00')+'</td>'+
+      '<td>'+escapeHtml(e.sale||'0')+'</td>'+
+      '<td>'+escapeHtml(e.balance||'0.00')+'</td>'+
+      '<td>'+escapeHtml(e.dipStock||'')+'</td>'+
+      '<td class="'+(isShort?'is-short-text':'is-excess-text')+'">'+escapeHtml(e.stEx||'0.00')+'</td>'+
+      '<td class="row-actions">'+
+        '<button type="button" onclick="event.stopPropagation();openEditStock('+i+')" aria-label="Edit this entry">✏️</button>'+
+        '<button type="button" onclick="event.stopPropagation();deleteStockEntry('+i+')" aria-label="Delete this entry">✕</button>'+
+      '</td>'+
+    '</tr>';
+  });
+
+  html+='</tbody></table></div>';
+  container.innerHTML=html;
   renderEntryCounts();
 }
 
@@ -1508,6 +1587,7 @@ function openEditStock(index){
   document.getElementById('es_arrival').value=(e.arrival||'0').toString().replace(/,/g,'');
   document.getElementById('es_sale').value=(e.sale||'0').toString().replace(/,/g,'');
   document.getElementById('es_dipStock').value=(e.dipStock||'').toString().replace(/,/g,'');
+  if(document.getElementById('es_tank')) document.getElementById('es_tank').value=e.tankId||'t50';
   document.getElementById('es_dipMM').value='';
   const msg=document.getElementById('editStockMsg');
   if(msg) msg.textContent='';
@@ -1555,6 +1635,7 @@ function saveEditStock(){
     sale: document.getElementById('es_sale').value||'0',
     balance: fmtStockNum(balance),
     dipStock: document.getElementById('es_dipStock').value||'',
+    tankId: (document.getElementById('es_tank')&&document.getElementById('es_tank').value) || old.tankId || 't50',
     stEx: stEx!=null?(stEx>=0?'+':'')+fmtStockNum(stEx):'0.00',
     savedAt: old.savedAt
   };
@@ -1581,11 +1662,13 @@ function saveEditStock(){
 
 /* ---------- Stock exports (CSV / PDF / Excel / WhatsApp) ---------- */
 function exportStockCSV(){
-  const list=loadStockHistory();
-  if(list.length===0){ alert('No stock entries saved yet — nothing to export.'); return; }
+  const {list:filtered,range}=getFilteredStockList();
+  const list=filtered.map(o=>o.e);
+  if(list.length===0){ alert('No stock entries saved for this date range — nothing to export.'); return; }
 
-  const rows=[['Date','Product','Description','Opening','Arrival','Total','Sale','Balance','Dip Stock','Short/Excess']];
-  list.forEach(e=>rows.push([e.date,e.product,e.desc||'',e.opening,e.arrival,e.total,e.sale,e.balance,e.dipStock,e.stEx]));
+  const rows=[['Date Range',rangeLabel(range)],[]];
+  rows.push(['Date','Product','Description','Opening','Arrival','Total','Sale','Balance','Dip Stock','Short/Excess']);
+  list.forEach(e=>rows.push([formatDMYShort(e.date),e.product,e.desc||'',e.opening,e.arrival,e.total,e.sale,e.balance,e.dipStock,e.stEx]));
 
   const csvContent=rows.map(r=>r.map(csvEscape).join(',')).join('\r\n');
   const blob=new Blob(['\ufeff'+csvContent],{type:'text/csv;charset=utf-8;'});
@@ -1594,8 +1677,9 @@ function exportStockCSV(){
 }
 
 function exportStockPDF(){
-  const list=loadStockHistory();
-  if(list.length===0){ alert('No stock entries saved yet — nothing to export.'); return; }
+  const {list:filtered,range}=getFilteredStockList();
+  const list=filtered.map(o=>o.e);
+  if(list.length===0){ alert('No stock entries saved for this date range — nothing to export.'); return; }
   if(!window.jspdf || !window.jspdf.jsPDF){
     alert('PDF export needs an internet connection to load the first time. Please check your connection and try again.');
     return;
@@ -1611,9 +1695,9 @@ function exportStockPDF(){
   doc.setTextColor(100,100,100);
   doc.text('Stock Management Register',14,25);
   doc.setFontSize(9);
-  doc.text('Generated: '+formatDateTimeDMY(new Date()),14,31);
+  doc.text('Generated: '+formatDateTimeDMY(new Date())+'   |   Date Range: '+rangeLabel(range),14,31);
 
-  const rows=list.map(e=>[e.date,e.product,e.desc||'',e.opening,e.arrival,e.total,e.sale,e.balance,e.dipStock,e.stEx]);
+  const rows=list.map(e=>[formatDMYShort(e.date),e.product,e.desc||'',e.opening,e.arrival,e.total,e.sale,e.balance,e.dipStock,e.stEx]);
 
   doc.autoTable({
     startY:36,
@@ -1629,15 +1713,17 @@ function exportStockPDF(){
 }
 
 function exportStockExcel(){
-  const list=loadStockHistory();
-  if(list.length===0){ alert('No stock entries saved yet — nothing to export.'); return; }
+  const {list:filtered,range}=getFilteredStockList();
+  const list=filtered.map(o=>o.e);
+  if(list.length===0){ alert('No stock entries saved for this date range — nothing to export.'); return; }
   if(!window.XLSX){
     alert('Excel export needs an internet connection to load the first time. Please check your connection and try again.');
     return;
   }
 
-  const rows=[['Date','Product','Description','Opening','Arrival','Total','Sale','Balance','Dip Stock','Short/Excess']];
-  list.forEach(e=>rows.push([e.date,e.product,e.desc||'',e.opening,e.arrival,e.total,e.sale,e.balance,e.dipStock,e.stEx]));
+  const rows=[['Date Range',rangeLabel(range)],[]];
+  rows.push(['Date','Product','Description','Opening','Arrival','Total','Sale','Balance','Dip Stock','Short/Excess']);
+  list.forEach(e=>rows.push([formatDMYShort(e.date),e.product,e.desc||'',e.opening,e.arrival,e.total,e.sale,e.balance,e.dipStock,e.stEx]));
 
   const ws=XLSX.utils.aoa_to_sheet(rows);
   ws['!cols']=[{wch:12},{wch:16},{wch:16},{wch:10},{wch:10},{wch:10},{wch:10},{wch:10},{wch:10},{wch:10}];
@@ -1651,13 +1737,15 @@ function exportStockExcel(){
 }
 
 function shareStockWhatsApp(){
-  const list=loadStockHistory();
-  if(list.length===0){ alert('No stock entries saved yet — nothing to share.'); return; }
+  const {list:filtered,range}=getFilteredStockList();
+  const list=filtered.map(o=>o.e);
+  if(list.length===0){ alert('No stock entries saved for this date range — nothing to share.'); return; }
 
   const recent=list.slice(0,20);
-  let msg='*'+getSiteName()+' — Stock Register*\n\n';
+  let msg='*'+getSiteName()+' — Stock Register*\n';
+  msg+='Date Range: '+rangeLabel(range)+'\n\n';
   recent.forEach(e=>{
-    msg+='• '+e.product+' ('+e.date+') — Bal: '+e.balance+' | Dip: '+(e.dipStock||'-')+' | Sh/Ex: '+e.stEx+'\n';
+    msg+='• '+e.product+' ('+formatDMYShort(e.date)+') — Bal: '+e.balance+' | Dip: '+(e.dipStock||'-')+' | Sh/Ex: '+e.stEx+'\n';
   });
   msg+='\nSent from Fuel Dip Calculator app.';
 
@@ -1710,6 +1798,19 @@ function isoToDMY(iso){
   const p=iso.split('-');
   const dd=new Date(Number(p[0]),Number(p[1])-1,Number(p[2]));
   return isNaN(dd.getTime()) ? iso : formatDateDMY(dd);
+}
+
+/* ---------- Canvas helper: dashed horizontal separator line ---------- */
+function drawDashedLine(ctx,x1,x2,y){
+  ctx.save();
+  ctx.strokeStyle='#cccccc';
+  ctx.lineWidth=1;
+  ctx.setLineDash([4,3]);
+  ctx.beginPath();
+  ctx.moveTo(x1,y);
+  ctx.lineTo(x2,y);
+  ctx.stroke();
+  ctx.restore();
 }
 
 /* ---------- Share stock entry as image (thermal-invoice style, drawn on canvas) ---------- */
@@ -2095,8 +2196,10 @@ function removeProduct(index){
 function onStockDipMM(){
   const mmRaw=document.getElementById('sk_dipMM').value;
   const mm=parseFloat(mmRaw);
+  const tankSel=document.getElementById('sk_tank');
+  const tank=CHART_TANKS[tankSel?tankSel.value:'t50']||CHART_TANKS.t50;
   if(mmRaw!=='' && !isNaN(mm)){
-    const ltrs=interp(tank50,mm);
+    const ltrs=interp(tank.data,mm);
     if(ltrs!=null) document.getElementById('sk_dipStock').value=ltrs.toFixed(2);
   }
   calcStock();
@@ -2104,8 +2207,10 @@ function onStockDipMM(){
 function onEditStockDipMM(){
   const mmRaw=document.getElementById('es_dipMM').value;
   const mm=parseFloat(mmRaw);
+  const tankSel=document.getElementById('es_tank');
+  const tank=CHART_TANKS[tankSel?tankSel.value:'t50']||CHART_TANKS.t50;
   if(mmRaw!=='' && !isNaN(mm)){
-    const ltrs=interp(tank50,mm);
+    const ltrs=interp(tank.data,mm);
     if(ltrs!=null) document.getElementById('es_dipStock').value=ltrs.toFixed(2);
   }
 }
@@ -2151,7 +2256,7 @@ function onStockProductChange(){
 /* ================= Fuel Tanker Unloading Status ================= */
 const UNLOAD_TANKS={ t50:{data:tank50,label:'50-KL Tank'}, t25:{data:tank25,label:'25-KL Tank'} };
 const UNLOAD_HISTORY_KEY='fuelTankerUnloadHistory';
-const UNLOAD_HISTORY_LIMIT=200;
+const UNLOAD_HISTORY_LIMIT=1000;
 
 function fmtNum(x){
   if(x==null||isNaN(x)) return '0.00';
@@ -2416,19 +2521,31 @@ function saveEditUnload(){
   closeEditUnload();
 }
 
+function getFilteredUnloadList(){
+  const range=getRangeValues('ul_rangeFrom','ul_rangeTo');
+  const list=loadUnloadHistory();
+  const filtered=list.map(function(e,i){ return {e:e,idx:i}; }).filter(function(o){
+    return isoInRange(o.e.dateRaw,range);
+  });
+  return {list:filtered,range:range};
+}
+
 function renderUnloadHistory(){
   renderEntryCounts();
   const container=document.getElementById('unloadHistoryList');
   if(!container) return;
-  const list=loadUnloadHistory();
+  const {list,range}=getFilteredUnloadList();
+  const noteEl=document.getElementById('ul_rangeNote');
+  if(noteEl) noteEl.textContent='Showing: '+rangeLabel(range)+' ('+list.length+' entries)';
 
   if(list.length===0){
-    container.innerHTML='<div class="history-empty">No unloading records saved yet.</div>';
+    container.innerHTML='<div class="history-empty">No unloading records saved for this date range.</div>';
     return;
   }
 
-  container.innerHTML=list.map((e,i)=>
-    '<div class="history-row history-row-clickable" onclick="viewUnloadAsImage('+i+')" title="Tap to view as image">'+
+  container.innerHTML=list.map(function(o){
+    const e=o.e, i=o.idx;
+    return '<div class="history-row history-row-clickable" onclick="viewUnloadAsImage('+i+')" title="Tap to view as image">'+
       '<span class="history-tank">'+escapeHtml(e.vehicle||e.vendor||'—')+'</span>'+
       '<span class="history-dip">'+escapeHtml(e.tankLabel||'')+'</span>'+
       '<span class="history-vol">'+escapeHtml(e.totalLiters||'0.00')+' L</span>'+
@@ -2436,8 +2553,8 @@ function renderUnloadHistory(){
       '<button type="button" class="history-edit" onclick="event.stopPropagation();openEditUnload('+i+')" aria-label="Edit this record">✏️</button>'+
       '<button type="button" class="history-delete" onclick="event.stopPropagation();deleteUnloadEntry('+i+')" aria-label="Delete this record">✕</button>'+
       (e.editedAt?'<span class="history-edited">✏️ Edited: '+escapeHtml(e.editSummary||'')+' — '+escapeHtml(e.editedAt)+'</span>':'')+
-    '</div>'
-  ).join('');
+    '</div>';
+  }).join('');
 }
 
 /* ---------- View unloading history entry as image ---------- */
