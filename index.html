@@ -249,7 +249,7 @@
     <div class="about-body">
       <div class="about-hero">
         <div class="about-app-name">Digital Fuel Dip Calculator</div>
-        <div class="about-app-version">Version: 31.1.0</div>
+        <div class="about-app-version">Version: 31.2.0</div>
       </div>
 
       <p class="about-lead">A modern, accurate, and user-friendly fuel tank dip calculator designed specifically for petrol pumps. The application converts manual dip readings into accurate fuel volume using calibrated dip charts with automatic interpolation.</p>
@@ -482,7 +482,7 @@
       </div>
 
       <div class="dev-meta">
-        <div class="dev-version">App Version : 4.31.1</div>
+        <div class="dev-version">App Version : 4.32.0</div>
         <div class="dev-copyright">© 2026 All Rights Reserved</div>
       </div>
     </div>
@@ -650,24 +650,76 @@
       <div class="reports-site-name" id="reportsSiteName">—</div>
       <div class="reports-site-address" id="reportsSiteAddress" style="display:none;"></div>
     </div>
-    <div class="history-head">
-      <span class="history-title" data-i18n="reports.title">📊 Reading History</span>
-      <div class="history-actions">
-        <button type="button" class="history-export" onclick="exportHistoryCSV()">⬇️ CSV</button>
-        <button type="button" class="history-pdf" onclick="exportHistoryPDF()">📄 PDF</button>
-        <button type="button" class="history-excel" onclick="exportHistoryExcel()">📊 Excel</button>
-        <button type="button" class="history-whatsapp" onclick="shareHistoryWhatsApp()">📤 WhatsApp</button>
-        <button type="button" class="history-clear" onclick="clearHistory()" data-i18n="unload.clearAll">Clear</button>
+
+    <div class="chart-tank-toggle" id="reportsTabToggle">
+      <button type="button" class="mode-btn is-active" data-rtab="reading" onclick="setReportsTab('reading')">📊 Readings</button>
+      <button type="button" class="mode-btn" data-rtab="stock" onclick="setReportsTab('stock')">📦 Stock</button>
+      <button type="button" class="mode-btn" data-rtab="unload" onclick="setReportsTab('unload')">🚚 Unloading</button>
+    </div>
+
+    <!-- READING HISTORY TAB -->
+    <div id="reportsTabReading" class="reports-tab">
+      <div class="history-head">
+        <span class="history-title" data-i18n="reports.title">📊 Reading History</span>
+        <div class="history-actions">
+          <button type="button" class="history-export" onclick="exportHistoryCSV()">⬇️ CSV</button>
+          <button type="button" class="history-pdf" onclick="exportHistoryPDF()">📄 PDF</button>
+          <button type="button" class="history-excel" onclick="exportHistoryExcel()">📊 Excel</button>
+          <button type="button" class="history-whatsapp" onclick="shareHistoryWhatsApp()">📤 WhatsApp</button>
+          <button type="button" class="history-clear" onclick="clearHistory()" data-i18n="unload.clearAll">Clear</button>
+        </div>
+      </div>
+      <div class="report-range-row">
+        <label class="field-inline"><span>Date From</span><input type="date" id="rp_rangeFrom" onchange="renderHistory()"></label>
+        <label class="field-inline"><span>Upto Date</span><input type="date" id="rp_rangeTo" onchange="renderHistory()"></label>
+        <button type="button" class="range-clear-btn" onclick="clearRangeInputs('rp_rangeFrom','rp_rangeTo',renderHistory)">✕ Clear Range</button>
+      </div>
+      <div id="rp_rangeNote" class="report-range-note"></div>
+      <div id="historyList" class="history-list">
+        <div class="history-empty" data-i18n="reports.noReadings">No readings saved yet. Tap any saved entry to view as image.</div>
       </div>
     </div>
-    <div class="report-range-row">
-      <label class="field-inline"><span>Date From</span><input type="date" id="rp_rangeFrom" onchange="renderHistory()"></label>
-      <label class="field-inline"><span>Upto Date</span><input type="date" id="rp_rangeTo" onchange="renderHistory()"></label>
-      <button type="button" class="range-clear-btn" onclick="clearRangeInputs('rp_rangeFrom','rp_rangeTo',renderHistory)">✕ Clear Range</button>
+
+    <!-- STOCK HISTORY TAB -->
+    <div id="reportsTabStock" class="reports-tab" style="display:none;">
+      <div class="history-head">
+        <span class="history-title">📜 Stock History</span>
+        <div class="history-actions">
+          <button type="button" class="history-export" onclick="exportStockCSV()">⬇️ CSV</button>
+          <button type="button" class="history-pdf" onclick="exportStockPDF()">📄 PDF</button>
+          <button type="button" class="history-excel" onclick="exportStockExcel()">📊 Excel</button>
+          <button type="button" class="history-whatsapp" onclick="shareStockWhatsApp()">📤 WhatsApp</button>
+          <button type="button" class="history-clear" onclick="clearStockHistory()">Clear</button>
+        </div>
+      </div>
+      <div class="report-range-row">
+        <label class="field-inline"><span>Date From</span><input type="date" id="sk_rangeFrom" onchange="renderStockHistory()"></label>
+        <label class="field-inline"><span>Upto Date</span><input type="date" id="sk_rangeTo" onchange="renderStockHistory()"></label>
+        <button type="button" class="range-clear-btn" onclick="clearRangeInputs('sk_rangeFrom','sk_rangeTo',renderStockHistory)">✕ Clear Range</button>
+      </div>
+      <div id="sk_rangeNote" class="report-range-note"></div>
+      <div id="stockHistoryList" class="history-list">
+        <div class="history-empty">No stock entries saved yet. Tap any saved entry to view as image.</div>
+      </div>
     </div>
-    <div id="rp_rangeNote" class="report-range-note"></div>
-    <div id="historyList" class="history-list">
-      <div class="history-empty" data-i18n="reports.noReadings">No readings saved yet. Tap any saved entry to view as image.</div>
+
+    <!-- UNLOADING HISTORY TAB -->
+    <div id="reportsTabUnload" class="reports-tab" style="display:none;">
+      <div class="history-head">
+        <span class="history-title" data-i18n="unload.historyTitle">📜 Unloading History</span>
+        <div class="history-actions">
+          <button type="button" class="history-clear" onclick="clearUnloadHistory()" data-i18n="unload.clearAll">Clear</button>
+        </div>
+      </div>
+      <div class="report-range-row">
+        <label class="field-inline"><span>Date From</span><input type="date" id="ul_rangeFrom" onchange="renderUnloadHistory()"></label>
+        <label class="field-inline"><span>Upto Date</span><input type="date" id="ul_rangeTo" onchange="renderUnloadHistory()"></label>
+        <button type="button" class="range-clear-btn" onclick="clearRangeInputs('ul_rangeFrom','ul_rangeTo',renderUnloadHistory)">✕ Clear Range</button>
+      </div>
+      <div id="ul_rangeNote" class="report-range-note"></div>
+      <div id="unloadHistoryList" class="history-list">
+        <div class="history-empty" data-i18n="unload.noRecords">No unloading records saved yet. Tap any saved entry to view as image.</div>
+      </div>
     </div>
   </section>
 </div>
@@ -778,27 +830,7 @@
     </div>
   </section>
 
-  <section class="history">
-    <div class="history-head">
-      <span class="history-title">📜 Stock History</span>
-      <div class="history-actions">
-        <button type="button" class="history-export" onclick="exportStockCSV()">⬇️ CSV</button>
-        <button type="button" class="history-pdf" onclick="exportStockPDF()">📄 PDF</button>
-        <button type="button" class="history-excel" onclick="exportStockExcel()">📊 Excel</button>
-        <button type="button" class="history-whatsapp" onclick="shareStockWhatsApp()">📤 WhatsApp</button>
-        <button type="button" class="history-clear" onclick="clearStockHistory()">Clear</button>
-      </div>
-    </div>
-    <div class="report-range-row">
-      <label class="field-inline"><span>Date From</span><input type="date" id="sk_rangeFrom" onchange="renderStockHistory()"></label>
-      <label class="field-inline"><span>Upto Date</span><input type="date" id="sk_rangeTo" onchange="renderStockHistory()"></label>
-      <button type="button" class="range-clear-btn" onclick="clearRangeInputs('sk_rangeFrom','sk_rangeTo',renderStockHistory)">✕ Clear Range</button>
-    </div>
-    <div id="sk_rangeNote" class="report-range-note"></div>
-    <div id="stockHistoryList" class="history-list">
-      <div class="history-empty">No stock entries saved yet.</div>
-    </div>
-  </section>
+  <div class="history-moved-note">📊 Stock History has moved to the <b>Reports</b> tab — tap any saved entry there to view it as an image and share it.</div>
 </div>
 
 <!-- ===== UNLOADING STATUS PANEL ===== -->
@@ -881,23 +913,7 @@
     </div>
   </section>
 
-  <section class="history">
-    <div class="history-head">
-      <span class="history-title" data-i18n="unload.historyTitle">📜 Unloading History</span>
-      <div class="history-actions">
-        <button type="button" class="history-clear" onclick="clearUnloadHistory()" data-i18n="unload.clearAll">Clear</button>
-      </div>
-    </div>
-    <div class="report-range-row">
-      <label class="field-inline"><span>Date From</span><input type="date" id="ul_rangeFrom" onchange="renderUnloadHistory()"></label>
-      <label class="field-inline"><span>Upto Date</span><input type="date" id="ul_rangeTo" onchange="renderUnloadHistory()"></label>
-      <button type="button" class="range-clear-btn" onclick="clearRangeInputs('ul_rangeFrom','ul_rangeTo',renderUnloadHistory)">✕ Clear Range</button>
-    </div>
-    <div id="ul_rangeNote" class="report-range-note"></div>
-    <div id="unloadHistoryList" class="history-list">
-      <div class="history-empty" data-i18n="unload.noRecords">No unloading records saved yet. Tap any saved entry to view as image.</div>
-    </div>
-  </section>
+  <div class="history-moved-note">📊 Unloading History has moved to the <b>Reports</b> tab — tap any saved entry there to view it as an image and share it.</div>
 </div>
 
 </div>
@@ -1008,6 +1024,24 @@
   </div>
 </div>
 
+
+<!-- ===== IMAGE PREVIEW MODAL (view saved entry as image + share) ===== -->
+<div class="modal-overlay" id="imagePreviewModal" style="display:none;" onclick="closeImagePreview(event)">
+  <div class="modal-card image-preview-card">
+    <div class="modal-head">
+      <h2>🖼️ Entry Preview</h2>
+      <button type="button" class="modal-close" onclick="closeImagePreview()">✕</button>
+    </div>
+    <div class="modal-row modal-row-stack image-preview-body">
+      <img id="imagePreviewImg" alt="Saved entry preview" class="image-preview-img">
+      <div class="btn-row">
+        <button type="button" class="save-btn" onclick="sharePreviewImage()">📤 Share</button>
+        <button type="button" class="copy-btn" onclick="downloadPreviewImage()">⬇️ Download</button>
+        <button type="button" class="clear-btn" onclick="closeImagePreview()">✕ Close</button>
+      </div>
+    </div>
+  </div>
+</div>
 
 <!-- ===== BOTTOM NAV (mobile) ===== -->
 <nav class="bottom-nav" id="bottomNav" aria-label="Section navigation">

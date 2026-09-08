@@ -445,7 +445,7 @@ function renderHistory(){
 
   container.innerHTML=list.map(function(o){
     const e=o.e, i=o.idx;
-    return '<div class="history-row history-row-clickable'+(e.note?' has-note':'')+'" onclick="viewReadingAsImage('+i+')" title="Tap to view as image">'+
+    return '<div class="history-row history-row-clickable'+(e.note?' has-note':'')+'" onclick="showReadingImage('+i+')" title="Tap to view as image">'+
       '<span class="history-tank">'+escapeHtml(e.tank)+'</span>'+
       '<span class="history-dip">'+e.dip+' mm</span>'+
       '<span class="history-vol">'+escapeHtml(e.volume)+'</span>'+
@@ -456,63 +456,6 @@ function renderHistory(){
       (e.editedAt?'<span class="history-edited">✏️ Edited: '+escapeHtml(e.editSummary||'')+' — '+escapeHtml(e.editedAt)+'</span>':'')+
     '</div>';
   }).join('');
-}
-
-/* ---------- View reading history entry as image ---------- */
-async function viewReadingAsImage(index){
-  const list=loadHistory();
-  if(index<0||index>=list.length) return;
-  const e=list[index];
-  const site=getSiteHeaderText();
-
-  let card=document.getElementById('readingDetailCard');
-  if(!card){
-    card=document.createElement('div');
-    card.id='readingDetailCard';
-    card.className='unload-receipt reading-detail-card';
-    document.body.appendChild(card);
-  }
-
-  card.innerHTML=
-    '<div class="unload-receipt-head">'+(escapeHtml(site.name)||'Fuel Dip Reading')+'</div>'+
-    (site.address?'<div class="reading-detail-addr">'+escapeHtml(site.address)+'</div>':'')+
-    '<table class="unload-receipt-table">'+
-      '<tr><td>Tank</td><td>'+escapeHtml(e.tank)+'</td></tr>'+
-      '<tr><td>Dip</td><td>'+e.dip+' mm</td></tr>'+
-      '<tr><td>Volume</td><td>'+escapeHtml(e.volume)+'</td></tr>'+
-      '<tr><td>Date & Time</td><td>'+(e.day?e.day+', ':'')+escapeHtml(e.time)+'</td></tr>'+
-      (e.note?'<tr><td>Note</td><td>'+escapeHtml(e.note)+'</td></tr>':'')+
-    '</table>'+
-    '<div class="unload-receipt-footer">Generated: '+formatDateTimeDMY(new Date())+'</div>';
-
-  if(!window.html2canvas){
-    alert('Image view needs an internet connection to load the first time. Please check your connection and try again.');
-    return;
-  }
-  try{
-    const canvas=await html2canvas(card,{scale:2,backgroundColor:'#ffffff'});
-    canvas.toBlob(function(blob){
-      if(!blob) return;
-      const url=URL.createObjectURL(blob);
-      const w=window.open('','_blank');
-      if(w){
-        w.document.write('<!doctype html><html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Reading Detail</title>'+
-          '<style>body{margin:0;padding:16px;background:#111;display:flex;flex-direction:column;align-items:center;min-height:100vh;box-sizing:border-box;font-family:system-ui,sans-serif;}'+
-          'img{max-width:100%;height:auto;border-radius:8px;box-shadow:0 8px 32px rgba(0,0,0,.4);}'+
-          '.actions{margin-top:16px;display:flex;gap:10px;flex-wrap:wrap;justify-content:center;}'+
-          'a,button{padding:10px 18px;border-radius:8px;border:none;font-size:15px;cursor:pointer;text-decoration:none;color:#fff;}'+
-          '.dl{background:#2563eb;} .cl{background:#64748b;}</style></head><body>'+
-          '<img src="'+url+'" alt="Reading detail">'+
-          '<div class="actions"><a class="dl" download="dip-reading-'+formatDateDMY(new Date())+'.png" href="'+url+'">⬇️ Download Image</a>'+
-          '<button class="cl" onclick="window.close()">Close</button></div></body></html>');
-        w.document.close();
-      }else{
-        shareOrDownloadBlob(blob,'dip-reading-'+formatDateDMY(new Date())+'.png','image/png');
-      }
-    },'image/png');
-  }catch(err){
-    alert('Image banate waqt masla hua. Dobara koshish karein.');
-  }
 }
 
 renderHistory();
@@ -1413,7 +1356,27 @@ function showPanel(navId){
   document.querySelectorAll('.bottom-nav .nav-item[data-nav]').forEach(function(item){
     item.classList.toggle('is-active', item.dataset.nav===navId);
   });
-  if(navId==='navReports') applySiteDetails();
+  if(navId==='navReports'){
+    applySiteDetails();
+    renderHistory();
+    renderStockHistory();
+    renderUnloadHistory();
+  }
+}
+
+/* ---------- Reports Module: switch between Reading / Stock / Unloading tabs ---------- */
+function setReportsTab(tab){
+  document.querySelectorAll('#reportsTabToggle .mode-btn').forEach(function(b){
+    b.classList.toggle('is-active', b.dataset.rtab===tab);
+  });
+  const map={reading:'reportsTabReading', stock:'reportsTabStock', unload:'reportsTabUnload'};
+  Object.keys(map).forEach(function(key){
+    const el=document.getElementById(map[key]);
+    if(el) el.style.display=(key===tab)?'block':'none';
+  });
+  if(tab==='reading') renderHistory();
+  if(tab==='stock') renderStockHistory();
+  if(tab==='unload') renderUnloadHistory();
 }
 
 /* ================= Stock Management ================= */
@@ -2545,7 +2508,7 @@ function renderUnloadHistory(){
 
   container.innerHTML=list.map(function(o){
     const e=o.e, i=o.idx;
-    return '<div class="history-row history-row-clickable" onclick="viewUnloadAsImage('+i+')" title="Tap to view as image">'+
+    return '<div class="history-row history-row-clickable" onclick="showUnloadImage('+i+')" title="Tap to view as image">'+
       '<span class="history-tank">'+escapeHtml(e.vehicle||e.vendor||'—')+'</span>'+
       '<span class="history-dip">'+escapeHtml(e.tankLabel||'')+'</span>'+
       '<span class="history-vol">'+escapeHtml(e.totalLiters||'0.00')+' L</span>'+
@@ -2557,14 +2520,14 @@ function renderUnloadHistory(){
   }).join('');
 }
 
-/* ---------- View unloading history entry as image ---------- */
-async function viewUnloadAsImage(index){
+/* ---------- View a saved unloading entry as an image (click on history row) ---------- */
+async function showUnloadImage(index){
   const list=loadUnloadHistory();
   if(index<0||index>=list.length) return;
   const e=list[index];
   const site=getSiteHeaderText();
 
-  // Temporarily fill receipt with saved entry
+  // Temporarily fill the off-screen receipt with the saved entry
   document.getElementById('rc_date').innerText = e.date || '-';
   document.getElementById('rc_vendor').innerText = e.vendor || '-';
   document.getElementById('rc_vehicle').innerText = e.vehicle || '-';
@@ -2603,27 +2566,10 @@ async function viewUnloadAsImage(index){
   const el=document.getElementById('unloadReceipt');
   try{
     const canvas=await html2canvas(el,{scale:2,backgroundColor:'#ffffff'});
-    canvas.toBlob(function(blob){
-      if(!blob) return;
-      const url=URL.createObjectURL(blob);
-      const w=window.open('','_blank');
-      if(w){
-        w.document.write('<!doctype html><html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Unloading Detail</title>'+
-          '<style>body{margin:0;padding:16px;background:#111;display:flex;flex-direction:column;align-items:center;min-height:100vh;box-sizing:border-box;font-family:system-ui,sans-serif;}'+
-          'img{max-width:100%;height:auto;border-radius:8px;box-shadow:0 8px 32px rgba(0,0,0,.4);}'+
-          '.actions{margin-top:16px;display:flex;gap:10px;flex-wrap:wrap;justify-content:center;}'+
-          'a,button{padding:10px 18px;border-radius:8px;border:none;font-size:15px;cursor:pointer;text-decoration:none;color:#fff;}'+
-          '.dl{background:#2563eb;} .cl{background:#64748b;}</style></head><body>'+
-          '<img src="'+url+'" alt="Unloading detail">'+
-          '<div class="actions"><a class="dl" download="unloading-'+formatDateDMY(new Date())+'.png" href="'+url+'">⬇️ Download Image</a>'+
-          '<button class="cl" onclick="window.close()">Close</button></div></body></html>');
-        w.document.close();
-      }else{
-        shareOrDownloadBlob(blob,'unloading-'+formatDateDMY(new Date())+'.png','image/png');
-      }
-      // restore live receipt
-      updateUnloadReceipt();
-    },'image/png');
+    const stamp=(e.date||formatDateDMY(new Date())).toString().replace(/[^0-9A-Za-z]/g,'');
+    openImagePreview(canvas,'unloading-'+stamp+'.png');
+    // restore live receipt behind the scenes
+    updateUnloadReceipt();
   }catch(err){
     alert('Image banate waqt masla hua. Dobara koshish karein.');
     updateUnloadReceipt();

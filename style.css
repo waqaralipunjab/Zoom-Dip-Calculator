@@ -929,6 +929,29 @@ body{
   padding: 10px 0;
 }
 
+.history-moved-note{
+  color: var(--text-muted);
+  font-size: 13px;
+  padding: 14px;
+  margin-top: 10px;
+  text-align: center;
+  border-radius: 12px;
+  border: 1px dashed var(--glass-border);
+}
+
+.reports-tab{ margin-top: 6px; }
+
+.image-preview-body{ align-items: center; }
+
+.image-preview-img{
+  width: 100%;
+  max-width: 320px;
+  border-radius: 10px;
+  box-shadow: 0 8px 24px rgba(0,0,0,.25);
+  margin: 4px auto 16px;
+  display: block;
+}
+
 .history-row{
   display: grid;
   grid-template-columns: 74px 1fr 1fr auto auto auto;
