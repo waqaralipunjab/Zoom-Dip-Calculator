@@ -2658,19 +2658,15 @@ async function shareUnloadImage(){
 })();
 
 
-/* ================= App version / last updated ================= */
-const APP_VERSION='v40';
-const APP_LAST_UPDATED='2026-11-17'; // <-- har update par yeh date change karein
+/* ================= App version / last updated (values come from version.js) ================= */
 (function initAppInfo(){
   let txt=APP_LAST_UPDATED;
   try{
     const d=new Date(APP_LAST_UPDATED+'T00:00:00');
-    txt=d.toLocaleDateString('en-GB',{day:'2-digit',month:'short',year:'numeric'});
+    if(!isNaN(d.getTime())) txt=d.toLocaleDateString('en-GB',{day:'2-digit',month:'short',year:'numeric'});
   }catch(e){}
-  const f=document.getElementById('appUpdateFooter');
-  if(f) f.textContent='Last updated: '+txt+'  •  '+APP_VERSION;
-  const v=document.getElementById('aboutAppVersion'); if(v) v.textContent=APP_VERSION;
-  const u=document.getElementById('aboutAppUpdated'); if(u) u.textContent=txt;
+  document.querySelectorAll('[data-app-version]').forEach(el=>{ el.textContent=APP_VERSION; });
+  document.querySelectorAll('[data-app-updated]').forEach(el=>{ el.textContent=txt; });
 })();
 
 /* ================= Unloading: auto-suggest from saved history ================= */

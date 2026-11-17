@@ -256,7 +256,7 @@
     <div class="about-body">
       <div class="about-hero">
         <div class="about-app-name">Digital Fuel Dip Calculator</div>
-        <div class="about-app-version">Version: 31.2.0</div>
+        <div class="about-app-version">Version: <span data-app-version>-</span></div>
       </div>
 
       <p class="about-lead">A modern, accurate, and user-friendly fuel tank dip calculator designed specifically for petrol pumps. The application converts manual dip readings into accurate fuel volume using calibrated dip charts with automatic interpolation.</p>
@@ -291,12 +291,6 @@
         <li>Dip: Millimeters (mm)</li>
         <li>Volume: Liters (L)</li>
       </ul>
-
-      <hr class="about-divider">
-
-      <h3 class="about-heading">App Information</h3>
-      <p class="about-text">Version: <strong id="aboutAppVersion">-</strong><br>Last Updated: <strong id="aboutAppUpdated">-</strong></p>
-      <p class="about-text">This is the date the app files (and its GitHub repository files) were last updated. If you are online and a newer version is available, it is installed automatically the next time you open the app.</p>
 
       <hr class="about-divider">
 
@@ -495,8 +489,9 @@
       </div>
 
       <div class="dev-meta">
-        <div class="dev-version">App Version : 4.32.0</div>
+        <div class="dev-version">App Version : <span data-app-version>-</span></div>
         <div class="dev-copyright">© 2026 All Rights Reserved</div>
+        <div class="dev-updated">Last Updated : <span data-app-updated>-</span></div>
       </div>
     </div>
   </footer>
@@ -1056,7 +1051,6 @@
   </div>
 </div>
 
-<div id="appUpdateFooter" class="app-update-footer"></div>
 <div id="acDropdown" class="ac-dropdown" style="display:none;"></div>
 
 <!-- ===== BOTTOM NAV (mobile) ===== -->
@@ -1084,6 +1078,7 @@
   </button>
 </nav>
 
+<script src="version.js"></script>
 <script src="tank50.js"></script>
 <script src="tank25.js"></script>
 <script src="script.js"></script>

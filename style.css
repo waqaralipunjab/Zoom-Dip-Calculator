@@ -1417,6 +1417,13 @@ body.dark-theme .history-note{
   color: #6B7280;
 }
 
+.dev-updated{
+  font-family: var(--font-mono);
+  font-size: 11.5px;
+  font-weight: 600;
+  color: #9CA3AF;
+}
+
 @media (max-width: 480px){
   .dev-contact{ flex-direction: column; gap: 10px; }
   .dev-name{ font-size: 14px; }
@@ -1821,6 +1828,7 @@ body.theme-classic .dev-role,
 body.theme-classic .dev-company,
 body.theme-classic .dev-sub,
 body.theme-classic .dev-version,
+body.theme-classic .dev-updated,
 body.theme-classic .dev-copyright{ color: var(--text-muted); }
 body.theme-classic .dev-name{ color: var(--text); }
 body.theme-classic .dev-link{
@@ -2777,8 +2785,4 @@ body.view-mobile .bottom-nav{
 .ac-item b{ color: var(--primary-dark); font-weight: 700; }
 .ac-sub{ display: block; font-size: 11.5px; color: var(--text-muted); margin-top: 2px; }
 
-/* ===== Last-updated footer ===== */
-.app-update-footer{
-  text-align: center; font-size: 11.5px; color: var(--text-muted);
-  padding: 6px 12px calc(96px + env(safe-area-inset-bottom, 0px));
-}
+
