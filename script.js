@@ -2656,3 +2656,121 @@ async function shareUnloadImage(){
   calcUnload();
   renderUnloadHistory();
 })();
+
+/* ================= Unloading: Auto-suggest (saved history se) ================= */
+(function(){
+  const FIELDS={ ul_vendor:'vendor', ul_vehicle:'vehicle', ul_driver:'driver', ul_contact:'contact' };
+  const MAX_SUGGEST=8;
+  let box=null, activeInput=null, items=[], hi=-1;
+
+  function ensureBox(){
+    if(box) return box;
+    box=document.createElement('div');
+    box.id='ulSuggestBox';
+    box.style.display='none';
+    document.body.appendChild(box);
+    return box;
+  }
+
+  function norm(s){ return String(s||'').toLowerCase().replace(/[\s\-\.]/g,''); }
+
+  /* History se unique values (latest pehle), typed text se match */
+  function getMatches(key, typed){
+    const q=norm(typed);
+    let list=[];
+    try{ list=loadUnloadHistory(); }catch(e){}
+    const seen={}, out=[];
+    for(let i=0;i<list.length;i++){
+      const rec=list[i]; const val=(rec[key]||'').trim();
+      if(!val) continue;
+      const n=norm(val);
+      if(seen[n]) continue;
+      if(q && n.indexOf(q)===-1) continue;
+      if(q && n===q) { seen[n]=1; continue; }   // bilkul same ho to dobara dikhane ki zaroorat nahi
+      seen[n]=1;
+      out.push({value:val, rec:rec});
+      if(out.length>=MAX_SUGGEST) break;
+    }
+    return out;
+  }
+
+  function position(){
+    if(!activeInput||!box) return;
+    const r=activeInput.getBoundingClientRect();
+    box.style.left=r.left+'px';
+    box.style.width=r.width+'px';
+    const below=window.innerHeight-r.bottom, h=Math.min(box.scrollHeight,220);
+    if(below<h+10 && r.top>h+10){ box.style.top=(r.top-h-4)+'px'; }
+    else { box.style.top=(r.bottom+2)+'px'; }
+  }
+
+  function hide(){ if(box) box.style.display='none'; items=[]; hi=-1; }
+
+  function render(){
+    ensureBox();
+    if(!items.length){ hide(); return; }
+    box.innerHTML='';
+    items.forEach(function(it,idx){
+      const d=document.createElement('div');
+      d.className='ul-sg-item'+(idx===hi?' active':'');
+      const main=document.createElement('span'); main.className='ul-sg-main'; main.textContent=it.value;
+      d.appendChild(main);
+      const sub=[];
+      const f=FIELDS[activeInput.id];
+      if(f==='vehicle'){ if(it.rec.vendor) sub.push(it.rec.vendor); if(it.rec.driver) sub.push(it.rec.driver); }
+      if(f==='vendor' && it.rec.vehicle) sub.push(it.rec.vehicle);
+      if(sub.length){ const s=document.createElement('span'); s.className='ul-sg-sub'; s.textContent=sub.join(' • '); d.appendChild(s); }
+      /* mousedown/touchstart: input ka focus na jaye */
+      d.addEventListener('mousedown',function(e){ e.preventDefault(); pick(idx); });
+      d.addEventListener('touchstart',function(e){ e.preventDefault(); pick(idx); },{passive:false});
+      box.appendChild(d);
+    });
+    box.style.display='block';
+    position();
+  }
+
+  function setVal(id,val){
+    const el=document.getElementById(id); if(el) el.value=val;
+  }
+
+  function pick(idx){
+    const it=items[idx]; if(!it||!activeInput) return;
+    const key=FIELDS[activeInput.id];
+    activeInput.value=it.value;
+    /* Vehicle select karne par baqi khaali fields bhi purane record se bhar do */
+    if(key==='vehicle'){
+      [['ul_vendor','vendor'],['ul_driver','driver'],['ul_contact','contact']].forEach(function(p){
+        const el=document.getElementById(p[0]);
+        if(el && !el.value.trim() && it.rec[p[1]]) el.value=it.rec[p[1]];
+      });
+    }
+    hide();
+    if(typeof calcUnload==='function') calcUnload();
+  }
+
+  function refresh(inp){
+    activeInput=inp;
+    items=getMatches(FIELDS[inp.id], inp.value);
+    hi=-1;
+    render();
+  }
+
+  function bind(id){
+    const inp=document.getElementById(id); if(!inp) return;
+    inp.setAttribute('autocomplete','off');   // browser ki apni list band, hamari list use hogi
+    inp.addEventListener('input',function(){ refresh(inp); });
+    inp.addEventListener('focus',function(){ refresh(inp); });
+    inp.addEventListener('blur',function(){ setTimeout(hide,150); });
+    inp.addEventListener('keydown',function(e){
+      if(!box||box.style.display==='none') return;
+      if(e.key==='ArrowDown'){ e.preventDefault(); hi=(hi+1)%items.length; render(); }
+      else if(e.key==='ArrowUp'){ e.preventDefault(); hi=(hi<=0?items.length:hi)-1; render(); }
+      else if(e.key==='Enter' && hi>=0){ e.preventDefault(); pick(hi); }
+      else if(e.key==='Escape'){ hide(); }
+    });
+  }
+
+  Object.keys(FIELDS).forEach(bind);
+  window.addEventListener('scroll',position,true);
+  window.addEventListener('resize',position);
+})();
