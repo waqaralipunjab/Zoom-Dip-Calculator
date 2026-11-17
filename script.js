@@ -2657,120 +2657,123 @@ async function shareUnloadImage(){
   renderUnloadHistory();
 })();
 
-/* ================= Unloading: Auto-suggest (saved history se) ================= */
-(function(){
+
+/* ================= App version / last updated ================= */
+const APP_VERSION='v40';
+const APP_LAST_UPDATED='2026-11-17'; // <-- har update par yeh date change karein
+(function initAppInfo(){
+  let txt=APP_LAST_UPDATED;
+  try{
+    const d=new Date(APP_LAST_UPDATED+'T00:00:00');
+    txt=d.toLocaleDateString('en-GB',{day:'2-digit',month:'short',year:'numeric'});
+  }catch(e){}
+  const f=document.getElementById('appUpdateFooter');
+  if(f) f.textContent='Last updated: '+txt+'  •  '+APP_VERSION;
+  const v=document.getElementById('aboutAppVersion'); if(v) v.textContent=APP_VERSION;
+  const u=document.getElementById('aboutAppUpdated'); if(u) u.textContent=txt;
+})();
+
+/* ================= Unloading: auto-suggest from saved history ================= */
+(function initUnloadAutocomplete(){
   const FIELDS={ ul_vendor:'vendor', ul_vehicle:'vehicle', ul_driver:'driver', ul_contact:'contact' };
-  const MAX_SUGGEST=8;
-  let box=null, activeInput=null, items=[], hi=-1;
+  const MAX_SHOW=6;
+  const dd=document.getElementById('acDropdown');
+  if(!dd) return;
+  let activeInput=null;
 
-  function ensureBox(){
-    if(box) return box;
-    box=document.createElement('div');
-    box.id='ulSuggestBox';
-    box.style.display='none';
-    document.body.appendChild(box);
-    return box;
-  }
+  function esc(t){ return String(t).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c])); }
+  function norm(t){ return String(t||'').toLowerCase().replace(/[\s\-\.]/g,''); }
 
-  function norm(s){ return String(s||'').toLowerCase().replace(/[\s\-\.]/g,''); }
-
-  /* History se unique values (latest pehle), typed text se match */
-  function getMatches(key, typed){
-    const q=norm(typed);
-    let list=[];
-    try{ list=loadUnloadHistory(); }catch(e){}
-    const seen={}, out=[];
-    for(let i=0;i<list.length;i++){
-      const rec=list[i]; const val=(rec[key]||'').trim();
+  // Unique values for a field, newest first, each with its latest full record
+  function getSuggestions(key,query){
+    const q=norm(query);
+    if(!q) return [];
+    const seen=new Set(), out=[];
+    const list=(typeof loadUnloadHistory==='function')?loadUnloadHistory():[];
+    for(const rec of list){
+      const val=(rec[key]||'').trim();
       if(!val) continue;
-      const n=norm(val);
-      if(seen[n]) continue;
-      if(q && n.indexOf(q)===-1) continue;
-      if(q && n===q) { seen[n]=1; continue; }   // bilkul same ho to dobara dikhane ki zaroorat nahi
-      seen[n]=1;
-      out.push({value:val, rec:rec});
-      if(out.length>=MAX_SUGGEST) break;
+      const nv=norm(val);
+      if(seen.has(nv)) continue;
+      seen.add(nv);
+      if(nv.indexOf(q)!==-1 && nv!==q) out.push({value:val,rec:rec});
+      if(out.length>=MAX_SHOW) break;
     }
+    // prefix matches first
+    out.sort((a,b)=>(norm(b.value).startsWith(q)?1:0)-(norm(a.value).startsWith(q)?1:0));
     return out;
   }
 
-  function position(){
-    if(!activeInput||!box) return;
-    const r=activeInput.getBoundingClientRect();
-    box.style.left=r.left+'px';
-    box.style.width=r.width+'px';
-    const below=window.innerHeight-r.bottom, h=Math.min(box.scrollHeight,220);
-    if(below<h+10 && r.top>h+10){ box.style.top=(r.top-h-4)+'px'; }
-    else { box.style.top=(r.bottom+2)+'px'; }
+  function highlight(val,query){
+    const i=val.toLowerCase().indexOf(String(query).trim().toLowerCase());
+    if(i<0||!query.trim()) return esc(val);
+    return esc(val.slice(0,i))+'<b>'+esc(val.slice(i,i+query.trim().length))+'</b>'+esc(val.slice(i+query.trim().length));
   }
 
-  function hide(){ if(box) box.style.display='none'; items=[]; hi=-1; }
-
-  function render(){
-    ensureBox();
-    if(!items.length){ hide(); return; }
-    box.innerHTML='';
-    items.forEach(function(it,idx){
-      const d=document.createElement('div');
-      d.className='ul-sg-item'+(idx===hi?' active':'');
-      const main=document.createElement('span'); main.className='ul-sg-main'; main.textContent=it.value;
-      d.appendChild(main);
-      const sub=[];
-      const f=FIELDS[activeInput.id];
-      if(f==='vehicle'){ if(it.rec.vendor) sub.push(it.rec.vendor); if(it.rec.driver) sub.push(it.rec.driver); }
-      if(f==='vendor' && it.rec.vehicle) sub.push(it.rec.vehicle);
-      if(sub.length){ const s=document.createElement('span'); s.className='ul-sg-sub'; s.textContent=sub.join(' • '); d.appendChild(s); }
-      /* mousedown/touchstart: input ka focus na jaye */
-      d.addEventListener('mousedown',function(e){ e.preventDefault(); pick(idx); });
-      d.addEventListener('touchstart',function(e){ e.preventDefault(); pick(idx); },{passive:false});
-      box.appendChild(d);
-    });
-    box.style.display='block';
-    position();
-  }
-
-  function setVal(id,val){
-    const el=document.getElementById(id); if(el) el.value=val;
-  }
-
-  function pick(idx){
-    const it=items[idx]; if(!it||!activeInput) return;
-    const key=FIELDS[activeInput.id];
-    activeInput.value=it.value;
-    /* Vehicle select karne par baqi khaali fields bhi purane record se bhar do */
-    if(key==='vehicle'){
-      [['ul_vendor','vendor'],['ul_driver','driver'],['ul_contact','contact']].forEach(function(p){
-        const el=document.getElementById(p[0]);
-        if(el && !el.value.trim() && it.rec[p[1]]) el.value=it.rec[p[1]];
-      });
+  function position(input){
+    const r=input.getBoundingClientRect();
+    dd.style.left=r.left+'px';
+    dd.style.width=r.width+'px';
+    const spaceBelow=window.innerHeight-r.bottom;
+    if(spaceBelow<200 && r.top>spaceBelow){
+      dd.style.top='auto';
+      dd.style.bottom=(window.innerHeight-r.top+4)+'px';
+    }else{
+      dd.style.bottom='auto';
+      dd.style.top=(r.bottom+4)+'px';
     }
+  }
+
+  function hide(){ dd.style.display='none'; dd.innerHTML=''; activeInput=null; }
+
+  function fillOthers(id,rec){
+    // Vehicle ya Vendor select karne par baqi khali fields history se bhar do
+    const order=['ul_vendor','ul_vehicle','ul_driver','ul_contact'];
+    order.forEach(fid=>{
+      if(fid===id) return;
+      const el=document.getElementById(fid);
+      if(el && !el.value.trim() && rec[FIELDS[fid]]) el.value=rec[FIELDS[fid]];
+    });
+  }
+
+  function show(input){
+    const key=FIELDS[input.id];
+    const items=getSuggestions(key,input.value);
+    if(!items.length){ hide(); return; }
+    activeInput=input;
+    dd.innerHTML=items.map((it,idx)=>{
+      let sub='';
+      if(input.id==='ul_vehicle') sub=[it.rec.vendor,it.rec.driver].filter(Boolean).join(' • ');
+      else if(input.id==='ul_vendor') sub=[it.rec.vehicle,it.rec.driver].filter(Boolean).join(' • ');
+      else if(input.id==='ul_driver') sub=[it.rec.vehicle,it.rec.contact].filter(Boolean).join(' • ');
+      return '<button type="button" class="ac-item" data-i="'+idx+'">'+highlight(it.value,input.value)+(sub?'<span class="ac-sub">'+esc(sub)+'</span>':'')+'</button>';
+    }).join('');
+    dd._items=items;
+    dd.style.display='block';
+    position(input);
+  }
+
+  // pointerdown + preventDefault: input focus na jaye aur tap foran register ho
+  dd.addEventListener('pointerdown',function(e){
+    const btn=e.target.closest('.ac-item');
+    if(!btn||!activeInput) return;
+    e.preventDefault();
+    const it=dd._items[Number(btn.getAttribute('data-i'))];
+    const input=activeInput;
+    input.value=it.value;
+    if(input.id==='ul_vehicle'||input.id==='ul_vendor') fillOthers(input.id,it.rec);
     hide();
     if(typeof calcUnload==='function') calcUnload();
-  }
+  });
 
-  function refresh(inp){
-    activeInput=inp;
-    items=getMatches(FIELDS[inp.id], inp.value);
-    hi=-1;
-    render();
-  }
-
-  function bind(id){
-    const inp=document.getElementById(id); if(!inp) return;
-    inp.setAttribute('autocomplete','off');   // browser ki apni list band, hamari list use hogi
-    inp.addEventListener('input',function(){ refresh(inp); });
-    inp.addEventListener('focus',function(){ refresh(inp); });
-    inp.addEventListener('blur',function(){ setTimeout(hide,150); });
-    inp.addEventListener('keydown',function(e){
-      if(!box||box.style.display==='none') return;
-      if(e.key==='ArrowDown'){ e.preventDefault(); hi=(hi+1)%items.length; render(); }
-      else if(e.key==='ArrowUp'){ e.preventDefault(); hi=(hi<=0?items.length:hi)-1; render(); }
-      else if(e.key==='Enter' && hi>=0){ e.preventDefault(); pick(hi); }
-      else if(e.key==='Escape'){ hide(); }
-    });
-  }
-
-  Object.keys(FIELDS).forEach(bind);
-  window.addEventListener('scroll',position,true);
-  window.addEventListener('resize',position);
+  Object.keys(FIELDS).forEach(id=>{
+    const el=document.getElementById(id);
+    if(!el) return;
+    el.setAttribute('autocomplete','off');
+    el.addEventListener('input',()=>show(el));
+    el.addEventListener('focus',()=>{ if(el.value.trim()) show(el); });
+    el.addEventListener('blur',()=>setTimeout(()=>{ if(activeInput===el) hide(); },150));
+  });
+  window.addEventListener('scroll',()=>{ if(activeInput) hide(); },true);
+  window.addEventListener('resize',hide);
 })();

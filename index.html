@@ -294,6 +294,12 @@
 
       <hr class="about-divider">
 
+      <h3 class="about-heading">App Information</h3>
+      <p class="about-text">Version: <strong id="aboutAppVersion">-</strong><br>Last Updated: <strong id="aboutAppUpdated">-</strong></p>
+      <p class="about-text">This is the date the app files (and its GitHub repository files) were last updated. If you are online and a newer version is available, it is installed automatically the next time you open the app.</p>
+
+      <hr class="about-divider">
+
       <h3 class="about-heading">Developed By</h3>
       <div class="about-dev-block">
         <img class="about-dev-logo" src="dev-logo.png" alt="Digital Solutions Logo">
@@ -855,19 +861,19 @@
       </label>
       <label class="field">
         <span class="field-label">🏢 <span data-i18n="unload.vendor">Vendor Name</span></span>
-        <input id="ul_vendor" class="settings-input" type="text" autocomplete="on" placeholder="e.g. PSO." oninput="calcUnload()">
+        <input id="ul_vendor" class="settings-input" type="text" autocomplete="off" placeholder="e.g. PSO." oninput="calcUnload()">
       </label>
       <label class="field">
         <span class="field-label">🚚 <span data-i18n="unload.vehicle">Vehicle No</span></span>
-        <input id="ul_vehicle" class="settings-input" type="text" autocomplete="on" placeholder="e.g. ABC-123" oninput="calcUnload()">
+        <input id="ul_vehicle" class="settings-input" type="text" autocomplete="off" placeholder="e.g. ABC-123" oninput="calcUnload()">
       </label>
       <label class="field">
         <span class="field-label">👤 <span data-i18n="unload.driver">Driver Name</span></span>
-        <input id="ul_driver" class="settings-input" type="text" autocomplete="on" placeholder="e.g. Ghulam Abbas" oninput="calcUnload()">
+        <input id="ul_driver" class="settings-input" type="text" autocomplete="off" placeholder="e.g. Ghulam Abbas" oninput="calcUnload()">
       </label>
       <label class="field">
         <span class="field-label">📞 <span data-i18n="unload.contact">Contact No</span></span>
-        <input id="ul_contact" class="settings-input" type="text" autocomplete="on" placeholder="e.g. 0300-123456" oninput="calcUnload()">
+        <input id="ul_contact" class="settings-input" type="text" autocomplete="off" placeholder="e.g. 0300-123456" oninput="calcUnload()">
       </label>
       <label class="field">
         <span class="field-label">🛢 <span data-i18n="unload.tank">Unloading Tank</span></span>
@@ -1049,6 +1055,9 @@
     </div>
   </div>
 </div>
+
+<div id="appUpdateFooter" class="app-update-footer"></div>
+<div id="acDropdown" class="ac-dropdown" style="display:none;"></div>
 
 <!-- ===== BOTTOM NAV (mobile) ===== -->
 <nav class="bottom-nav" id="bottomNav" aria-label="Section navigation">

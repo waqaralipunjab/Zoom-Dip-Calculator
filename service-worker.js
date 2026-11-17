@@ -1,7 +1,7 @@
 // Al Mukhtar Petroleum - Dip Calculator - Service Worker
 // Enables offline use and "Install app" support on Android/iOS/desktop.
 
-const CACHE_NAME = 'amp-dip-calculator-v2';
+const CACHE_NAME = 'amp-dip-calculator-v40';
 
 const APP_SHELL = [
   './',
